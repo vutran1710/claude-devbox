@@ -1,0 +1,29 @@
+name: Undeploy from Railway
+
+on:
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: claude-devbox
+
+jobs:
+  undeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate secrets
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::RAILWAY_TOKEN secret is not set"
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Remove service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway service delete "$SERVICE_NAME" --yes && echo "Service '$SERVICE_NAME' removed." || echo "::error::Failed to remove service"
