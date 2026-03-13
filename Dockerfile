@@ -108,6 +108,6 @@ WORKDIR /workspace
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 22 3000 4040 5173 8080 54321
+EXPOSE 22
 
 ENTRYPOINT ["/entrypoint.sh"]

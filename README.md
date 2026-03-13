@@ -95,10 +95,4 @@ agent-browser screenshot /tmp/page.png
 
 ## Ports
 
-| Port | Service |
-|------|---------|
-| 3000 | Next.js / web app dev server |
-| 4040 | Wormhole traffic inspector |
-| 5173 | Vite dev server |
-| 8080 | General purpose |
-| 54321 | Supabase local |
+Only port 22 (SSH) is exposed by default. All other ports are dynamic — expose whatever you need through Railway's networking settings or tunnel them via wormhole.
