@@ -1,42 +1,38 @@
-name: Deploy to Railway
+name: Deploy to DigitalOcean
 
 on:
   workflow_dispatch:
     inputs:
       region:
-        description: "Railway region"
+        description: "DigitalOcean region"
         required: false
-        default: "us-west2"
+        default: "nyc1"
         type: choice
         options:
-          - us-west2
-          - us-east4-eqdc4a
-          - europe-west4-drams3a
-          - asia-southeast1-eqsg3a
-      cpu:
-        description: "vCPUs"
+          - nyc1
+          - nyc3
+          - sfo3
+          - ams3
+          - sgp1
+          - lon1
+          - fra1
+          - blr1
+      size:
+        description: "Droplet size"
         required: false
-        default: "4"
+        default: "s-4vcpu-8gb"
         type: choice
         options:
-          - "2"
-          - "4"
-          - "8"
-          - "16"
-          - "32"
-      ram_gb:
-        description: "RAM in GB"
-        required: false
-        default: "8"
-        type: choice
-        options:
-          - "4"
-          - "8"
-          - "16"
-          - "32"
+          - s-2vcpu-4gb
+          - s-4vcpu-8gb
+          - s-8vcpu-16gb
+          - c-4-8gib
+          - c-8-16gib
+          - c-16-32gib
 
 env:
-  SERVICE_NAME: claude-devbox
+  DROPLET_NAME: claude-devbox
+  IMAGE: docker-20-04
 
 jobs:
   deploy:
@@ -47,11 +43,11 @@ jobs:
 
       - name: Validate secrets
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "::error::RAILWAY_TOKEN secret is not set"
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+            echo "::error::DIGITALOCEAN_ACCESS_TOKEN secret is not set"
             exit 1
           fi
           if [ -z "$SSH_PUBLIC_KEY" ]; then
@@ -59,78 +55,90 @@ jobs:
             exit 1
           fi
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Create service if needed
+      - name: Add SSH key to DigitalOcean
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
-          railway add --service "$SERVICE_NAME" --variables "SSH_PUBLIC_KEY=$SSH_PUBLIC_KEY" --json 2>/dev/null || echo "Service may already exist, continuing..."
+          KEY_FINGERPRINT=$(ssh-keygen -lf /dev/stdin <<< "$SSH_PUBLIC_KEY" | awk '{print $2}')
+          EXISTING=$(doctl compute ssh-key list --format FingerPrint --no-header | grep "$KEY_FINGERPRINT" || true)
+          if [ -z "$EXISTING" ]; then
+            doctl compute ssh-key create claude-devbox-key --public-key "$SSH_PUBLIC_KEY"
+            echo "SSH key added to DigitalOcean."
+          else
+            echo "SSH key already exists in DigitalOcean."
+          fi
+          echo "KEY_FINGERPRINT=$KEY_FINGERPRINT" >> "$GITHUB_ENV"
 
-      - name: Inject resource config into railway.toml
-        env:
-          REGION: ${{ inputs.region }}
-          CPU: ${{ inputs.cpu }}
-          RAM_GB: ${{ inputs.ram_gb }}
+      - name: Destroy existing droplet if present
         run: |
-          RAM_BYTES=$(( RAM_GB * 1073741824 ))
-          sed -i "s/__REGION__/$REGION/" railway.toml
-          sed -i "s/__CPU__/$CPU/" railway.toml
-          sed -i "s/__RAM_BYTES__/$RAM_BYTES/" railway.toml
-          echo "Deploying with: region=$REGION, cpu=$CPU vCPUs, ram=${RAM_GB}GB ($RAM_BYTES bytes)"
-          cat railway.toml
+          EXISTING_ID=$(doctl compute droplet list --format ID,Name --no-header | grep "$DROPLET_NAME" | awk '{print $1}' || true)
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Destroying existing droplet $EXISTING_ID..."
+            doctl compute droplet delete "$EXISTING_ID" --force
+            sleep 10
+          fi
 
-      - name: Deploy
+      - name: Create cloud-init user data
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --detach --service "$SERVICE_NAME"
-
-      - name: Wait for service to be ready
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
-          echo "Waiting for service to be ready..."
+          cat > /tmp/cloud-init.yml << 'CLOUD_INIT'
+          #cloud-config
+          runcmd:
+            - git clone https://github.com/${{ github.repository }}.git /opt/claude-devbox
+            - cd /opt/claude-devbox && git checkout ${{ github.ref_name }}
+            - cd /opt/claude-devbox && docker build -t claude-devbox .
+            - docker run -d --name claude-devbox --restart unless-stopped -p 22:22 -e SSH_PUBLIC_KEY="${SSH_PUBLIC_KEY}" claude-devbox
+          CLOUD_INIT
+
+      - name: Create Droplet
+        run: |
+          doctl compute droplet create "$DROPLET_NAME" \
+            --image "$IMAGE" \
+            --size "${{ inputs.size }}" \
+            --region "${{ inputs.region }}" \
+            --ssh-keys "$KEY_FINGERPRINT" \
+            --user-data-file /tmp/cloud-init.yml \
+            --tag-name claude-devbox \
+            --wait
+
+      - name: Wait for Droplet to be ready
+        run: |
+          echo "Waiting for Droplet to be ready..."
           MAX_ATTEMPTS=30
           SLEEP_SECONDS=30
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            RAW=$(railway service status --service "$SERVICE_NAME" --json 2>/dev/null || true)
-            echo "Attempt $i/$MAX_ATTEMPTS: $RAW"
-            STATUS=$(echo "$RAW" | jq -r '.. | .status? // empty' 2>/dev/null | grep -v '^$' | head -1 || true)
-            echo "  -> parsed status: $STATUS"
-            case "$STATUS" in
-              running|success|RUNNING|SUCCESS|deployed|DEPLOYED)
-                echo "Service is ready!"
-                break
-                ;;
-              failed|crashed|FAILED|CRASHED)
-                echo "::error::Service deployment failed with status: $STATUS"
-                exit 1
-                ;;
-            esac
+            STATUS=$(doctl compute droplet get "$DROPLET_NAME" --format Status --no-header 2>/dev/null || true)
+            echo "Attempt $i/$MAX_ATTEMPTS: status=$STATUS"
+            if [ "$STATUS" = "active" ]; then
+              echo "Droplet is active!"
+              break
+            fi
             if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
-              echo "::error::Timed out waiting for service to be ready (${MAX_ATTEMPTS}x${SLEEP_SECONDS}s)"
+              echo "::error::Timed out waiting for droplet"
               exit 1
             fi
             sleep $SLEEP_SECONDS
           done
 
-      - name: Generate domain and print SSH access
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Print SSH access info
         run: |
-          DOMAIN=$(railway domain --port 22 --service "$SERVICE_NAME" --json 2>/dev/null | jq -r '.domain // empty')
-          if [ -n "$DOMAIN" ]; then
-            echo "## SSH Access" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "ssh root@${DOMAIN}" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo ""
-            echo "=============================="
-            echo "  SSH into your devbox:"
-            echo "  ssh root@${DOMAIN}"
-            echo "=============================="
-          else
-            echo "Could not generate domain. Set it manually in Railway networking settings."
-          fi
+          IP=$(doctl compute droplet get "$DROPLET_NAME" --format PublicIPv4 --no-header)
+          echo "## SSH Access" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "ssh root@${IP}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo ""
+          echo "=============================="
+          echo "  SSH into your devbox:"
+          echo "  ssh root@${IP}"
+          echo "=============================="
+          echo ""
+          echo "Note: The Docker image is building on the Droplet."
+          echo "It may take a few minutes before the container is ready."
+          echo "SSH into the Droplet directly to monitor: docker logs -f claude-devbox"

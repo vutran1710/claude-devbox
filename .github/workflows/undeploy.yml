@@ -1,10 +1,10 @@
-name: Undeploy from Railway
+name: Undeploy from DigitalOcean
 
 on:
   workflow_dispatch:
 
 env:
-  SERVICE_NAME: claude-devbox
+  DROPLET_NAME: claude-devbox
 
 jobs:
   undeploy:
@@ -12,18 +12,24 @@ jobs:
     steps:
       - name: Validate secrets
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "::error::RAILWAY_TOKEN secret is not set"
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+            echo "::error::DIGITALOCEAN_ACCESS_TOKEN secret is not set"
             exit 1
           fi
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Remove deployment
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Destroy Droplet
         run: |
-          railway down --service "$SERVICE_NAME" --yes && echo "Deployment removed for '$SERVICE_NAME'." || echo "::error::Failed to remove deployment"
+          EXISTING_ID=$(doctl compute droplet list --format ID,Name --no-header | grep "$DROPLET_NAME" | awk '{print $1}' || true)
+          if [ -n "$EXISTING_ID" ]; then
+            doctl compute droplet delete "$EXISTING_ID" --force
+            echo "Droplet '$DROPLET_NAME' (ID: $EXISTING_ID) has been destroyed."
+          else
+            echo "No droplet named '$DROPLET_NAME' found."
+          fi
