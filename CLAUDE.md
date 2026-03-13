@@ -4,7 +4,7 @@ This is a dedicated remote development server running on Railway.
 
 ## Installed Tools
 
-- **Claude Code CLI** — AI coding assistant (this)
+- **Claude Code CLI** — AI coding assistant (runs with `--dangerously-skip-permissions` for full autonomy)
 - **Agent Browser** — headless browser automation CLI for testing web apps
 - **Playwright** — browser automation and end-to-end testing framework
 - **GitHub CLI** (`gh`) — GitHub operations

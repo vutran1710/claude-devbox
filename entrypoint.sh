@@ -50,7 +50,11 @@ echo "After SSH-ing in, run:"
 echo "  tmux attach -t claude"
 echo ""
 
-tmux new-session -d -s claude "claude auth login; exec bash"
+# Enable fully autonomous mode (skip all permission prompts)
+claude config set --global autoUpdaterStatus disabled 2>/dev/null || true
+echo 'alias claude="claude --dangerously-skip-permissions"' >> /root/.bashrc
+
+tmux new-session -d -s claude "claude auth login && echo 'Auth complete. Claude is ready with --dangerously-skip-permissions.'; exec bash"
 
 # Keep container alive
 exec tail -f /dev/null
