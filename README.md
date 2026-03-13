@@ -4,7 +4,7 @@
 
 # Claude DevBox
 
-A dedicated remote development server deployed on DigitalOcean with Claude Code CLI and essential dev tools pre-installed.
+A dedicated remote development server with Claude Code CLI and essential dev tools pre-installed. Deploy to **Railway** or **DigitalOcean** — your choice.
 
 ## Why
 
@@ -32,49 +32,29 @@ The Macbook stays home. You don't.
 | Node.js 22 | JavaScript runtime |
 | Go | For Go-based tooling |
 
-## Deploy to DigitalOcean
+## Deploy
 
-### Via GitHub Actions (recommended)
+Pick a cloud provider and run the corresponding GitHub Actions workflow.
+
+| Provider | Deploy | Undeploy | Secrets Needed |
+|----------|--------|----------|----------------|
+| **Railway** | "Deploy to Railway" | "Undeploy from Railway" | `RAILWAY_TOKEN`, `SSH_PUBLIC_KEY` |
+| **DigitalOcean** | "Deploy to DigitalOcean" | "Undeploy from DigitalOcean" | `DIGITALOCEAN_ACCESS_TOKEN`, `SSH_PUBLIC_KEY` |
+
+### Quick Start
 
 1. Push this repo to GitHub
-2. Create a DigitalOcean API token from the [API settings](https://cloud.digitalocean.com/account/api/tokens)
-3. Add these **GitHub repo secrets** (Settings → Secrets → Actions):
-   - `DIGITALOCEAN_ACCESS_TOKEN` — your DigitalOcean API token
-   - `SSH_PUBLIC_KEY` — your public key (`cat ~/.ssh/id_ed25519.pub`)
-4. Go to Actions → "Deploy to DigitalOcean" → Run workflow
-5. SSH in and attach to the tmux session:
+2. Add the required **secrets** for your chosen provider (Settings → Secrets → Actions)
+3. Go to **Actions** → pick your deploy workflow → **Run workflow**
+4. SSH in and attach to the tmux session:
 
 ```bash
-ssh root@<droplet-ip>
+ssh root@<host>
 tmux attach -t claude
 # Complete the OAuth login, then you're ready
 ```
 
-### Manual deploy
-
-```bash
-# Install doctl (DigitalOcean CLI)
-# macOS: brew install doctl
-# Linux: snap install doctl
-
-# Authenticate
-doctl auth init
-
-# Create a Droplet with Docker pre-installed
-doctl compute droplet create claude-devbox \
-  --image docker-20-04 \
-  --size s-4vcpu-8gb \
-  --region nyc1 \
-  --ssh-keys <your-ssh-key-fingerprint>
-
-# SSH in and build
-ssh root@<droplet-ip>
-git clone https://github.com/your/claude-devbox.git /opt/claude-devbox
-cd /opt/claude-devbox
-docker build -t claude-devbox .
-docker run -d --name claude-devbox --restart unless-stopped \
-  -p 22:22 -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" claude-devbox
-```
+See [`cloud-providers/railway/`](cloud-providers/railway/) or [`cloud-providers/digitalocean/`](cloud-providers/digitalocean/) for provider-specific details and manual deploy instructions.
 
 ## tmux Basics
 
@@ -106,4 +86,4 @@ agent-browser screenshot /tmp/page.png
 
 ## Ports
 
-Port 22 (SSH) is exposed by default. All other ports are accessible directly on the Droplet's IP — expose whatever you need through DigitalOcean's firewall settings or tunnel them via wormhole.
+Port 22 (SSH) is exposed by default. Other ports depend on your provider — expose them through your provider's networking settings or tunnel them via wormhole.
