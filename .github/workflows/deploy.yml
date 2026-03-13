@@ -13,10 +13,15 @@ jobs:
       - name: Validate secrets
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "::error::RAILWAY_TOKEN secret is not set"
+            exit 1
+          fi
+          if [ -z "$RAILWAY_SERVICE_ID" ]; then
+            echo "::error::RAILWAY_SERVICE_ID secret is not set"
             exit 1
           fi
           if [ -z "$SSH_PUBLIC_KEY" ]; then
@@ -30,7 +35,8 @@ jobs:
       - name: Set SSH key and deploy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
-          railway variables set SSH_PUBLIC_KEY="$SSH_PUBLIC_KEY"
-          railway up --detach
+          railway variables set SSH_PUBLIC_KEY="$SSH_PUBLIC_KEY" --service "$RAILWAY_SERVICE_ID"
+          railway up --detach --service "$RAILWAY_SERVICE_ID"
