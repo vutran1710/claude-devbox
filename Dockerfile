@@ -1,0 +1,113 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME=/root
+ENV PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.cargo/bin:/usr/local/go/bin:$PATH"
+
+# System dependencies + Chromium deps for agent-browser
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    unzip \
+    jq \
+    build-essential \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    sudo \
+    openssh-client \
+    openssh-server \
+    tmux \
+    # Chromium dependencies for agent-browser
+    libnss3 \
+    libatk1.0-0t64 \
+    libatk-bridge2.0-0t64 \
+    libcups2t64 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2t64 \
+    libxshmfence1 \
+    libgtk-3-0t64 \
+    libx11-xcb1 \
+    fonts-liberation \
+    xdg-utils \
+    # Rust/C build deps
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Rust + Cargo ──
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+# ── Python (via uv) ──
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && $HOME/.local/bin/uv python install 3.13
+
+# ── Node.js 22 ──
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && npm config set prefix "$HOME/.npm-global" \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Go (for wormhole) ──
+RUN curl -fsSL https://go.dev/dl/go1.24.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+
+# ── Docker CLI ──
+RUN curl -fsSL https://get.docker.com | sh
+
+# ── GitHub CLI ──
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Claude Code CLI ──
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# ── Agent Browser ──
+RUN npm install -g agent-browser \
+    && agent-browser install
+
+# ── Vercel CLI ──
+RUN npm install -g vercel
+
+# ── Supabase CLI ──
+RUN curl -fsSL https://raw.githubusercontent.com/supabase/cli/main/install.sh | bash
+
+# ── Wormhole CLI ──
+RUN curl -fsSL https://wormhole.bar/install.sh | sh
+
+# ── SSH server setup ──
+RUN mkdir -p /run/sshd \
+    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config \
+    && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+# ── Claude skills directory ──
+RUN mkdir -p /root/.claude/skills/agent-browser \
+    && mkdir -p /root/.claude/skills/wormhole
+
+COPY skills/agent-browser/SKILL.md /root/.claude/skills/agent-browser/SKILL.md
+COPY skills/wormhole/SKILL.md /root/.claude/skills/wormhole/SKILL.md
+COPY CLAUDE.md /root/CLAUDE.md
+
+# ── Workspace ──
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+# ── Entrypoint ──
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 22 3000 4040 5173 8080 54321
+
+ENTRYPOINT ["/entrypoint.sh"]

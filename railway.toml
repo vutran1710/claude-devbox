@@ -1,0 +1,7 @@
+[build]
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "/entrypoint.sh"
+healthcheckPath = ""
+restartPolicyType = "NEVER"
