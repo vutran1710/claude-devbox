@@ -93,7 +93,7 @@ jobs:
         run: |
           echo "Waiting for service to be ready..."
           MAX_ATTEMPTS=30
-          SLEEP_SECONDS=10
+          SLEEP_SECONDS=30
           for i in $(seq 1 $MAX_ATTEMPTS); do
             STATUS=$(railway status --service "$SERVICE_NAME" --json 2>/dev/null | jq -r '.status // empty')
             echo "Attempt $i/$MAX_ATTEMPTS: status=$STATUS"
