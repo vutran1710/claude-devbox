@@ -41,6 +41,13 @@ RUN apt-get update && apt-get install -y \
     # Rust/C build deps
     pkg-config \
     libssl-dev \
+    # VNC + noVNC (remote desktop screen sharing)
+    xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    fluxbox \
+    xterm \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Rust + Cargo ──
@@ -98,10 +105,12 @@ RUN mkdir -p /run/sshd \
 
 # ── Claude skills directory ──
 RUN mkdir -p /root/.claude/skills/agent-browser \
-    && mkdir -p /root/.claude/skills/wormhole
+    && mkdir -p /root/.claude/skills/wormhole \
+    && mkdir -p /root/.claude/skills/vnc
 
 COPY skills/agent-browser/SKILL.md /root/.claude/skills/agent-browser/SKILL.md
 COPY skills/wormhole/SKILL.md /root/.claude/skills/wormhole/SKILL.md
+COPY skills/vnc/SKILL.md /root/.claude/skills/vnc/SKILL.md
 COPY CLAUDE.md /root/CLAUDE.md
 
 # ── Workspace ──
@@ -112,6 +121,9 @@ WORKDIR /workspace
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 22
+COPY start-vnc.sh /start-vnc.sh
+RUN chmod +x /start-vnc.sh
+
+EXPOSE 22 6080
 
 ENTRYPOINT ["/entrypoint.sh"]
