@@ -95,7 +95,7 @@ jobs:
           MAX_ATTEMPTS=30
           SLEEP_SECONDS=30
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            RAW=$(railway status --service "$SERVICE_NAME" --json 2>/dev/null || true)
+            RAW=$(railway service status --service "$SERVICE_NAME" --json 2>/dev/null || true)
             echo "Attempt $i/$MAX_ATTEMPTS: $RAW"
             STATUS=$(echo "$RAW" | jq -r '.. | .status? // empty' 2>/dev/null | grep -v '^$' | head -1 || true)
             echo "  -> parsed status: $STATUS"
