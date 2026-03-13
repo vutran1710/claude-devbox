@@ -80,6 +80,10 @@ RUN npm install -g agent-browser \
 # ── Vercel CLI ──
 RUN npm install -g vercel
 
+# ── Playwright ──
+RUN npm install -g playwright \
+    && playwright install --with-deps chromium
+
 # ── Supabase CLI ──
 RUN curl -fsSL https://raw.githubusercontent.com/supabase/cli/main/install.sh | bash
 

@@ -6,6 +6,7 @@ This is a dedicated remote development server running on Railway.
 
 - **Claude Code CLI** — AI coding assistant (this)
 - **Agent Browser** — headless browser automation CLI for testing web apps
+- **Playwright** — browser automation and end-to-end testing framework
 - **GitHub CLI** (`gh`) — GitHub operations
 - **Vercel CLI** (`vercel`) — deploy and manage Vercel projects
 - **Supabase CLI** (`supabase`) — local Supabase dev and edge functions
