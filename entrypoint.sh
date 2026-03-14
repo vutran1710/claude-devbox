@@ -9,7 +9,7 @@ echo ""
 # ── SSH setup (required) ──
 if [ -z "$SSH_PUBLIC_KEY" ]; then
     echo "ERROR: SSH_PUBLIC_KEY env var is required but not set."
-    echo "Set it in Railway: your public key (e.g. ssh-ed25519 AAAA... you@machine)"
+    echo "Set SSH_PUBLIC_KEY as an environment variable (e.g. ssh-ed25519 AAAA... you@machine)"
     exit 1
 fi
 
@@ -41,7 +41,13 @@ echo "  uv         : $(uv --version 2>/dev/null)"
 echo "  Wormhole   : $(wormhole version 2>/dev/null || echo 'installed')"
 echo "  AgentBrowser: $(agent-browser --version 2>/dev/null || echo 'installed')"
 echo "  tmux       : $(tmux -V)"
+echo "  noVNC      : $(dpkg -s novnc 2>/dev/null | grep Version | awk '{print $2}' || echo 'installed')"
 echo ""
+
+# ── Start VNC if ENABLE_VNC is set ──
+if [ "${ENABLE_VNC:-false}" = "true" ]; then
+    /start-vnc.sh "${VNC_RESOLUTION:-1280x800}"
+fi
 
 # ── Start Claude auth in a tmux session ──
 echo "Starting tmux session 'claude' with auth login..."
@@ -50,7 +56,48 @@ echo "After SSH-ing in, run:"
 echo "  tmux attach -t claude"
 echo ""
 
-tmux new-session -d -s claude "claude auth login; exec bash"
+# ── Create non-root 'claude' user (--dangerously-skip-permissions requires non-root) ──
+useradd -m -s /bin/bash claude 2>/dev/null || true
+chmod o+rx /root /root/.local /root/.local/bin
+chmod o+rx /root/.npm-global /root/.npm-global/bin 2>/dev/null || true
+chmod o+rx /root/.cargo /root/.cargo/bin 2>/dev/null || true
+chmod -R o+rX /root/.claude 2>/dev/null || true
+
+mkdir -p /home/claude/.ssh
+cp /root/.ssh/authorized_keys /home/claude/.ssh/
+chmod 700 /home/claude/.ssh
+chmod 600 /home/claude/.ssh/authorized_keys
+
+cp -r /root/.claude /home/claude/.claude 2>/dev/null || true
+cp /root/CLAUDE.md /home/claude/CLAUDE.md 2>/dev/null || true
+
+cat > /home/claude/.bashrc <<'BASHRC'
+export PATH="/root/.local/bin:/root/.npm-global/bin:/root/.cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
+export HOME=/home/claude
+claude() {
+  if [ "$1" = "auth" ] || [ "$1" = "config" ]; then
+    /root/.local/bin/claude "$@"
+  else
+    /root/.local/bin/claude --dangerously-skip-permissions "$@"
+  fi
+}
+BASHRC
+
+chown -R claude:claude /home/claude /workspace
+
+claude config set --global autoUpdaterStatus disabled 2>/dev/null || true
+
+# ── GitHub CLI auth ──
+if [ -n "$GITHUB_TOKEN" ]; then
+    GH_TOKEN_VAL="$GITHUB_TOKEN"
+    unset GITHUB_TOKEN
+    echo "$GH_TOKEN_VAL" | gh auth login --with-token || true
+    su - claude -c "echo '$GH_TOKEN_VAL' | gh auth login --with-token" 2>/dev/null || true
+    echo "GitHub CLI authenticated."
+fi
+
+echo "Non-root 'claude' user created. SSH as 'claude' for full autonomy mode."
+echo ""
 
 # Keep container alive
 exec tail -f /dev/null
