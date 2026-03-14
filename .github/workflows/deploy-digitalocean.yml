@@ -126,19 +126,31 @@ jobs:
             sleep $SLEEP_SECONDS
           done
 
-      - name: Print SSH access info
+      - name: Get Droplet IP
+        id: droplet-ip
         run: |
           IP=$(doctl compute droplet get "$DROPLET_NAME" --format PublicIPv4 --no-header)
-          echo "## SSH Access" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "ssh root@${IP}" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo ""
-          echo "=============================="
-          echo "  SSH into your devbox:"
-          echo "  ssh root@${IP}"
-          echo "=============================="
-          echo ""
-          echo "Note: The Docker image is building on the Droplet."
-          echo "It may take a few minutes before the container is ready."
-          echo "SSH into the Droplet directly to monitor: docker logs -f claude-devbox"
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+
+      - name: Email SSH access info
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Claude DevBox deployed - SSH access"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: |
+            Your Claude DevBox droplet is ready.
+
+            SSH access:
+              ssh root@${{ steps.droplet-ip.outputs.ip }}
+
+            Region: ${{ inputs.region }}
+            Size: ${{ inputs.size }}
+
+            Note: The Docker image is building on the Droplet.
+            It may take a few minutes before the container is ready.
+            SSH into the Droplet directly to monitor: docker logs -f claude-devbox
