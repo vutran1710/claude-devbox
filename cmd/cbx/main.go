@@ -144,18 +144,18 @@ func startDaemon(port int) error {
 	exe, _ := os.Executable()
 	args := []string{exe, "serve", "--port", fmt.Sprintf("%d", port)}
 
-	attr := &os.ProcAttr{
-		Dir:   "/",
-		Env:   os.Environ(),
-		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
+	attr, closeFiles, err := daemonAttr(serve.LogFile)
+	if err != nil {
+		return err
 	}
+	defer closeFiles()
 
 	proc, err := os.StartProcess(exe, args, attr)
 	if err != nil {
 		return fmt.Errorf("failed to start daemon: %w", err)
 	}
 	proc.Release()
-	fmt.Printf("cbx serve started (port %d)\n", port)
+	fmt.Printf("cbx serve started (port %d), logging to %s\n", port, serve.LogFile)
 	return nil
 }
 

@@ -26,6 +26,7 @@ const (
 	APIKeyFile  = "/tmp/cbx-serve.key"
 	StateFile   = "/tmp/cbx-serve.state"
 	TunnelLog   = "/tmp/cbx-serve-tunnel.log"
+	LogFile     = "/tmp/cbx-serve.log"
 )
 
 type Server struct {
