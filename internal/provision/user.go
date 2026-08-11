@@ -41,18 +41,19 @@ chmod 600 /home/claude/.ssh/authorized_keys 2>/dev/null || true`)
 	shell.RunShell(ctx, `cp -r /root/.claude /home/claude/.claude 2>/dev/null || true`)
 	shell.RunShell(ctx, `mkdir -p /home/claude/.config && cp -r /root/.config/gh /home/claude/.config/gh 2>/dev/null || true`)
 
-	// Configure Chrome Lite MCP if installed
-	mcpConfig := `{
-  "mcpServers": {
-    "chrome": {
-      "command": "node",
-      "args": ["/opt/chrome-lite-mcp/server/index.js"],
-      "env": {}
-    }
-  }
-}`
-	if _, err := os.Stat("/opt/chrome-lite-mcp/server/index.js"); err == nil {
-		os.WriteFile("/home/claude/.claude.json", []byte(mcpConfig), 0644)
+	// Seed the claude user's config: mark onboarding complete so sessions come
+	// up at their prompt, and register Chrome Lite MCP if it is installed.
+	// Merges into any existing file — it holds the signed-in account.
+	_, mcpErr := os.Stat("/opt/chrome-lite-mcp/server/index.js")
+	existing, _ := os.ReadFile("/home/claude/.claude.json")
+	cfg, err := claudeConfig(existing, mcpErr == nil)
+	if err != nil {
+		return fmt.Errorf("build claude config: %w", err)
+	}
+	if err := os.WriteFile("/home/claude/.claude.json", cfg, 0644); err != nil {
+		return fmt.Errorf("write claude config: %w", err)
+	}
+	if mcpErr == nil {
 		shell.RunShell(ctx, `cp /opt/chrome-lite-mcp/docs/skills.md /home/claude/.claude/chrome-lite-mcp-skills.md 2>/dev/null || true`)
 	}
 

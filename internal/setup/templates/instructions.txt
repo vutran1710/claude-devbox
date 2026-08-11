@@ -7,6 +7,13 @@ description: Manage ClaudeBox remote server — create sessions, query messages,
 
 You are connected to a ClaudeBox remote server.
 
+## Master Session
+
+An always-on session named `{{.MasterName}}` runs on the server. Open it from
+any device via Remote Control:
+
+{{.MasterURL}}
+
 ## Session API
 
 Base URL: {{.ServeURL}}

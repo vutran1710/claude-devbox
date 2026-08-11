@@ -16,9 +16,11 @@ import (
 	"github.com/vutran1710/claudebox/internal/provision"
 	"github.com/vutran1710/claudebox/internal/serve"
 	"github.com/vutran1710/claudebox/internal/service"
+	"github.com/vutran1710/claudebox/internal/session"
 	"github.com/vutran1710/claudebox/internal/shell"
 	"github.com/vutran1710/claudebox/internal/ui"
 	"github.com/vutran1710/claudebox/internal/vnc"
+	"github.com/vutran1710/claudebox/internal/workspace"
 )
 
 type phase int
@@ -33,8 +35,12 @@ const (
 	phaseVNC
 	phaseAMServer
 	phaseServe
+	phaseMaster
 	phaseDone
 )
+
+// MasterSession is the always-on session the user drives from their phone.
+const MasterSession = "master"
 
 // Critical tools that must succeed for setup to continue
 var criticalTools = map[string]bool{
@@ -50,10 +56,12 @@ type model struct {
 	textInput  textinput.Model
 	oauthURL   string
 	authResult *auth.OAuthResult
-	vncInfo   *vnc.VNCInfo
-	amStatus  service.Status
-	serveURL  string
-	err       error
+	vncInfo    *vnc.VNCInfo
+	amStatus   service.Status
+	serveURL   string
+	masterURL  string
+	masterErr  error
+	err        error
 }
 
 func Run() error {
@@ -175,6 +183,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case serveReadyMsg:
 		m.serveURL = msg.tunnelURL
+		m.phase = phaseMaster
+		return m, startMaster()
+
+	case masterReadyMsg:
+		m.masterURL = msg.rcURL
+		m.masterErr = msg.err
 		m.phase = phaseDone
 		return m, tea.Quit
 
@@ -209,7 +223,8 @@ func (m model) View() string {
 		{"Login successful", phaseVNC, phaseOAuth},
 		{"VNC + Chrome started", phaseAMServer, phaseVNC},
 		{"am-server started", phaseServe, phaseAMServer},
-		{"API daemon started", phaseDone, phaseServe},
+		{"API daemon started", phaseMaster, phaseServe},
+		{"Master session started", phaseDone, phaseMaster},
 	}
 
 	switch m.phase {
@@ -262,13 +277,22 @@ func getTemplateData(m model) map[string]string {
 	if key, ok := m.amStatus.Extra["api_key"]; ok {
 		amKey = key
 	}
+	masterNote := m.masterURL
+	if masterNote == "" {
+		masterNote = "not started"
+		if m.masterErr != nil {
+			masterNote = fmt.Sprintf("not started (%s)", m.masterErr)
+		}
+	}
 	return map[string]string{
-		"VNCURL":   vncURL,
-		"VNCPass":  vncPass,
-		"AMURL":    amURL,
-		"AMKey":    amKey,
-		"ServeURL": serveURL,
-		"ServeKey": serve.GetAPIKey(),
+		"VNCURL":     vncURL,
+		"VNCPass":    vncPass,
+		"AMURL":      amURL,
+		"AMKey":      amKey,
+		"ServeURL":   serveURL,
+		"ServeKey":   serve.GetAPIKey(),
+		"MasterName": MasterSession,
+		"MasterURL":  masterNote,
 	}
 }
 
@@ -276,7 +300,8 @@ func getTemplateData(m model) map[string]string {
 func renderDoneOutput(m model) string {
 	var b strings.Builder
 	data := getTemplateData(m)
-	fmt.Fprintf(&b, "\n  VNC:       %s\n", ui.StyleValue.Render(data["VNCURL"]))
+	fmt.Fprintf(&b, "\n  Master:    %s\n", ui.StyleValue.Render(data["MasterURL"]))
+	fmt.Fprintf(&b, "  VNC:       %s\n", ui.StyleValue.Render(data["VNCURL"]))
 	fmt.Fprintf(&b, "  Password:  %s\n", data["VNCPass"])
 	if data["AMURL"] != "" {
 		fmt.Fprintf(&b, "  am-server: %s\n", ui.StyleValue.Render(data["AMURL"]))
@@ -316,6 +341,27 @@ type cloudInitDoneMsg struct{}
 type userCreatedMsg struct{}
 type amServerReadyMsg struct{ status service.Status }
 type serveReadyMsg struct{ tunnelURL string }
+type masterReadyMsg struct {
+	rcURL string
+	err   error
+}
+
+// startMaster brings up the always-on session the user drives from their
+// phone. A failure here is reported but does not fail setup — every other
+// service is already up and the session can be started later with cbx code.
+func startMaster() tea.Cmd {
+	return func() tea.Msg {
+		dir, err := workspace.Resolve(MasterSession, "")
+		if err != nil {
+			return masterReadyMsg{err: err}
+		}
+		sess, err := session.NewTmuxManager().Create(MasterSession, dir.Dir)
+		if err != nil {
+			return masterReadyMsg{err: err}
+		}
+		return masterReadyMsg{rcURL: sess.RCURL}
+	}
+}
 func waitForCloudInit() tea.Cmd {
 	return func() tea.Msg {
 		shell.RunShellTimeout(5*time.Minute,
@@ -427,4 +473,3 @@ func startServe() tea.Cmd {
 		return serveReadyMsg{tunnelURL: ""}
 	}
 }
-
