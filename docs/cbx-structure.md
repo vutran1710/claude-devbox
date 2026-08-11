@@ -124,12 +124,13 @@ type ResolveResult struct {
     Status string   // cloned, found, created
 }
 
-func ResolveGitHub(repo string) (*ResolveResult, error)
-func ResolveProject(name string) (*ResolveResult, error)
-func Resolve(github, project string) (*ResolveResult, error)
+// Clones when repo is set, otherwise finds or creates /workspace/<name>.
+// Hands the directory to the claude user, since sessions run as that user.
+func Resolve(name, repo string) (*ResolveResult, error)
+func ResolveIn(root, name, repo string) (*ResolveResult, error)
 ```
 
-Pure functions. No state. Used by: `api/handlers.go`, `cli/code.go`
+No state beyond the filesystem. Used by: `internal/serve`, `internal/code`, `internal/setup`
 
 ## Data Flow
 

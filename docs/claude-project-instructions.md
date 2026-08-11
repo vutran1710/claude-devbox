@@ -14,15 +14,16 @@ To create a Claude Code session for a GitHub repo:
 curl -X POST https://SERVE_URL/sessions \
   -H "X-API-Key: SERVE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "PROJECT_NAME", "github": "owner/repo"}'
+  -d '{"name": "PROJECT_NAME", "repo": "owner/repo"}'
 ```
 
-To create a session for an existing project:
+To create a session for an existing project, omit `repo` — the name maps to
+`/workspace/PROJECT_NAME`, which is found if it exists and created otherwise:
 ```bash
 curl -X POST https://SERVE_URL/sessions \
   -H "X-API-Key: SERVE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "PROJECT_NAME", "project": "dir-name"}'
+  -d '{"name": "PROJECT_NAME"}'
 ```
 
 To list active sessions:

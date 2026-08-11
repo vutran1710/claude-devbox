@@ -1,6 +1,6 @@
 # ClaudeBox
 
-This is your always-on remote dev server. You are the master Claude session (`claude-master`).
+This is your always-on remote dev server. You are the master Claude session (`master`).
 
 ## Master Session
 

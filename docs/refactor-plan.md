@@ -1,5 +1,10 @@
 # cbx Refactor & Implementation Plan
 
+> **Historical.** This is the plan the refactor was executed from, kept for
+> context. Some proposed signatures differ from what shipped — `ResolveGitHub`
+> and `ResolveProject` landed as a single `Resolve(name, repo)`. See
+> [cbx-structure.md](cbx-structure.md) for the current structure.
+
 ## Goal
 
 Refactor cbx into clean, testable modules with interfaces, then implement the phase 2 features (serve as control plane, simplified setup).

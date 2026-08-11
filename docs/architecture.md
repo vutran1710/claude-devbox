@@ -22,9 +22,9 @@ ClaudeBox (cloud server)
   │   ├── DELETE /sessions/{name}            ← kill session
   │   └── Cloudflare tunnel → public URL
   │
-  ├── Claude Code sessions (tmux)
-  │   ├── claude-master                      ← primary session
-  │   └── claude-{project}                   ← project sessions
+  ├── Claude Code sessions (tmux, as the claude user)
+  │   ├── master                             ← always-on session, Remote Control
+  │   └── {project}                          ← project sessions
   │
   ├── Chrome Lite MCP (port 7331)            ← browser automation
   │   ├── Plugin system (gmail, discord, zalo, messenger, slack)
@@ -52,8 +52,9 @@ ClaudeBox (cloud server)
    ├── Create claude user
    ├── OAuth authenticate
    ├── Start VNC + Chrome
+   ├── Start am-server + Cloudflare tunnel
    ├── Start cbx serve daemon + Cloudflare tunnel
-   ├── Start master Claude session
+   ├── Start the master session (Remote Control enabled)
    └── Print: Remote Control URL, VNC URL, API URL + key
 3. Done — access from phone via Remote Control URL
 ```
@@ -63,14 +64,14 @@ ClaudeBox (cloud server)
 All sessions go through `cbx serve`:
 
 ```
-# Via API (from phone, another service, or Claude master session)
+# Via API (from phone, another service, or the master session)
 POST http://cbx-serve-url/sessions
-  { "name": "my-project", "github": "owner/repo" }
-  → { "name": "my-project", "remote_control": "https://claude.ai/code/...", "status": "running" }
+  { "name": "my-project", "repo": "owner/repo" }
+  → { "name": "my-project", "dir": "/workspace/my-project", "status": "created" }
 
 # Via CLI (from SSH)
-cbx code -g owner/repo
-cbx code -p existing-project
+cbx code my-project --repo owner/repo
+cbx code existing-project
 ```
 
 ## Data Flow (Message Polling)
