@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ClaudeBin = "/usr/local/share/devbox-tools/bin/claude"
-	WorkDir   = "/workspace"
+	ClaudeBin  = "/usr/local/share/devbox-tools/bin/claude"
+	WorkDir    = "/workspace"
 	ClaudeUser = "claude"
 )
 
@@ -55,25 +55,10 @@ func (m *TmuxManager) Create(name, workDir string) (*Session, error) {
 
 	time.Sleep(5 * time.Second)
 
-	// Navigate startup prompts
-	for i := 0; i < 10; i++ {
-		pane := capturPane(name)
-		switch {
-		case strings.Contains(pane, "Choose the text style"):
-			sendKeys(name, "Enter")
-		case strings.Contains(pane, "trust this folder"):
-			sendKeys(name, "Enter")
-		case strings.Contains(pane, "bypass permissions on"):
-			goto ready
-		case strings.Contains(pane, "What can I help"):
-			goto ready
-		case strings.Contains(pane, ">"):
-			goto ready
-		}
-		time.Sleep(3 * time.Second)
+	if err := navigateStartup(name); err != nil {
+		return nil, err
 	}
 
-ready:
 	// Enable remote control
 	rcURL := enableRemoteControl(name)
 
