@@ -27,10 +27,12 @@ ssh -t root@<host> 'cbx setup'
 # 3. Save the printed skill to ~/.claude/skills/claudebox/SKILL.md
 #    or paste it into a Claude Project at claude.ai/projects
 
-# 4. Start working from the Claude app
+# 4. Open the printed master session URL on your phone and start working
 ```
 
 Setup prints a ready-to-use skill file with your server's URLs and API keys baked in. Save it and Claude knows how to manage your server.
+
+It also starts an always-on `master` session with Remote Control enabled and prints its `claude.ai/code` URL — open that on any device to talk to your server directly.
 
 ## Commands
 
@@ -109,7 +111,8 @@ cbx setup
   ├── Start VNC + Chrome (with MCP extension)
   ├── Start am-server + Cloudflare tunnel
   ├── Start cbx serve + Cloudflare tunnel
-  └── Print skill file with URLs and API keys
+  ├── Start the master session (Remote Control enabled)
+  └── Print skill file with URLs, API keys, and the master session URL
 ```
 
 ## Architecture

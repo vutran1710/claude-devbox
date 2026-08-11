@@ -114,7 +114,7 @@ func serveCmd() *cobra.Command {
   cbx serve --stop           # stop the daemon
 
 API endpoints:
-  POST   /sessions           Create session { name, github, project }
+  POST   /sessions           Create session { name, repo? }
   GET    /sessions           List sessions
   DELETE /sessions/{name}    Kill session
   GET    /health             Health check`,

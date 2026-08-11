@@ -152,7 +152,7 @@ User pastes the instruction block from `cbx setup` output into a Claude chat. Cl
 ```
 Claude: "Start a session for my-app repo"
 → POST https://cbx-tunnel-url/sessions
-  { "name": "my-app", "github": "owner/my-app" }
+  { "name": "my-app", "repo": "owner/my-app" }
 → { "name": "my-app", "dir": "/workspace/my-app", "status": "cloned" }
 → Claude: "Session 'my-app' created in /workspace/my-app"
 ```

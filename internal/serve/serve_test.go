@@ -78,7 +78,7 @@ func TestCreateSession_Valid(t *testing.T) {
 
 func TestCreateSession_MissingName(t *testing.T) {
 	s := newTestServer(t)
-	body := `{"github":"owner/repo"}`
+	body := `{"repo":"owner/repo"}`
 	req := httptest.NewRequest("POST", "/sessions", strings.NewReader(body))
 	req.Header.Set("X-API-Key", "test-key")
 	w := httptest.NewRecorder()
