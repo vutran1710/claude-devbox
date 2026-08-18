@@ -31,12 +31,6 @@ ClaudeBox (cloud server)
   │   ├── Background jobs (scheduler)
   │   └── Chrome extension (side panel UI)
   │
-  ├── am-server (port 8090)                  ← message store
-  │   ├── POST /ingest
-  │   ├── POST /webhook/chrome-lite-mcp
-  │   ├── GET  /api/messages
-  │   └── Cloudflare tunnel → public URL
-  │
   └── VNC desktop (port 6080)                ← visual access
       ├── Chrome + MCP extension
       └── Cloudflare tunnel → public URL
@@ -52,7 +46,6 @@ ClaudeBox (cloud server)
    ├── Create claude user
    ├── OAuth authenticate
    ├── Start VNC + Chrome
-   ├── Start am-server + Cloudflare tunnel
    ├── Start cbx serve daemon + Cloudflare tunnel
    ├── Start the master session (Remote Control enabled)
    └── Print: Remote Control URL, VNC URL, API URL + key
@@ -80,9 +73,7 @@ cbx code existing-project
 1. Claude or scheduler calls: create_job("gmail", { tool: "get_unread", ... })
 2. Scheduler runs get_unread every N minutes
 3. Gmail plugin opens Chrome tab, runs JS, extracts emails
-4. Results POSTed to webhook: POST am-server/webhook/chrome-lite-mcp
-5. am-server expands array into individual messages
-6. Queryable: GET am-server/api/messages?source=gmail
+4. Results are returned to the caller as typed { type, data, metadata } payloads
 ```
 
 ## Ports
@@ -93,7 +84,6 @@ cbx code existing-project
 | 5900 | VNC | localhost → Cloudflare tunnel |
 | 6080 | noVNC | localhost → Cloudflare tunnel |
 | 7331 | Chrome Lite MCP | localhost only |
-| 8090 | am-server | localhost → Cloudflare tunnel |
 | 8091 | cbx serve | localhost → Cloudflare tunnel |
 
 ## Repos
@@ -102,4 +92,3 @@ cbx code existing-project
 |------|---------|
 | [claudebox](https://github.com/vutran1710/claudebox) | Server setup, CLI, session management |
 | [chrome-lite-mcp](https://github.com/vutran1710/chrome-lite-mcp) | Browser automation MCP with plugin system |
-| [am](https://github.com/vutran1710/am) | Message aggregation server |

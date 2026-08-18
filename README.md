@@ -14,7 +14,6 @@ Deploy Claude Code to a cloud server and access it from your phone, tablet, or a
 - Claude Code runs 24/7 with full autonomy, pre-authenticated
 - Session management via HTTP API — create, list, kill sessions remotely
 - Browser automation for Gmail, Discord, Zalo, Messenger via Chrome Lite MCP (optional)
-- Messages aggregated to am-server, queryable anytime (optional)
 
 ## Quick Start
 
@@ -109,7 +108,6 @@ cbx setup
   ├── Create claude user + gh auth
   ├── OAuth authenticate Claude Code
   ├── Start VNC + Chrome (with MCP extension)
-  ├── Start am-server + Cloudflare tunnel
   ├── Start cbx serve + Cloudflare tunnel
   ├── Start the master session (Remote Control enabled)
   └── Print skill file with URLs, API keys, and the master session URL
@@ -127,7 +125,6 @@ Phone/Tablet/Laptop
 ClaudeBox (cloud server)
   +-- cbx serve (API daemon, Cloudflare tunneled)
   +-- Chrome Lite MCP (browser automation + plugins)
-  +-- am-server (message store, Cloudflare tunneled)
   +-- VNC desktop (Chrome, Cloudflare tunneled)
 ```
 
@@ -142,7 +139,7 @@ internal/
   provision/        Tool installation + user creation
   workspace/        Smart project resolution (find/clone/create)
   session/          Manager interface + TmuxManager
-  service/          Service interface (VNC, AMServer)
+  service/          Service interface (VNC)
   serve/            HTTP API server with auth
   setup/            TUI setup flow + skill template
   shell/            Shell execution utilities
@@ -159,7 +156,6 @@ tests/              Integration tests + E2E script
 | Repo | Purpose |
 |------|---------|
 | [chrome-lite-mcp](https://github.com/vutran1710/chrome-lite-mcp) | Browser automation MCP with plugin system |
-| [am](https://github.com/vutran1710/am) | Message aggregation server |
 
 ## Ports
 
@@ -168,5 +164,4 @@ tests/              Integration tests + E2E script
 | 22   | SSH | Direct (key auth) |
 | 6080 | noVNC | Cloudflare tunnel |
 | 7331 | Chrome Lite MCP | localhost only |
-| 8090 | am-server | Cloudflare tunnel |
 | 8091 | cbx serve | Cloudflare tunnel |

@@ -50,4 +50,3 @@ curl "https://AM_URL/api/stats" -H "X-API-Key: AM_KEY"
 - Sessions run as the `claude` user with full autonomy
 - Each session gets a Remote Control URL visible in the Claude app
 - Chrome Lite MCP plugins (Gmail, Discord, Zalo, etc.) are available within sessions
-- Background polling jobs push results to am-server via webhook

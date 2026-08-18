@@ -45,21 +45,6 @@ func Run() {
 		fmt.Println(ui.StatusLine("Chrome", false, "not running"))
 	}
 
-	// am-server
-	am := service.NewAMServer()
-	amStatus := am.Status()
-	if amStatus.Running {
-		fmt.Println(ui.StatusLine("am-server", true, fmt.Sprintf("running (port %d)", amStatus.Port)))
-		if amStatus.TunnelURL != "" {
-			fmt.Printf("                       %s\n", ui.StyleValue.Render(amStatus.TunnelURL))
-		}
-		if key, ok := amStatus.Extra["api_key"]; ok {
-			fmt.Printf("                       %s\n", ui.StyleDim.Render("key: "+key))
-		}
-	} else {
-		fmt.Println(ui.StatusLine("am-server", false, "not running"))
-	}
-
 	// Chrome Lite MCP
 	chromeMCP := activate.IsChromeMCPConfigured()
 	if chromeMCP {

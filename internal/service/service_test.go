@@ -8,21 +8,10 @@ func TestVNCImplementsService(t *testing.T) {
 	var _ Service = (*VNC)(nil)
 }
 
-func TestAMServerImplementsService(t *testing.T) {
-	var _ Service = (*AMServer)(nil)
-}
-
 func TestVNCName(t *testing.T) {
 	v := NewVNC()
 	if v.Name() != "VNC" {
 		t.Errorf("expected 'VNC', got %q", v.Name())
-	}
-}
-
-func TestAMServerName(t *testing.T) {
-	a := NewAMServer()
-	if a.Name() != "am-server" {
-		t.Errorf("expected 'am-server', got %q", a.Name())
 	}
 }
 

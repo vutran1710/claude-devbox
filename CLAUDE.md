@@ -10,7 +10,7 @@ You can manage the server using `cbx` commands:
 ```bash
 cbx code --headless my-app --repo owner/repo   # Clone repo and start session
 cbx code --headless my-app                     # Find or create /workspace/my-app
-cbx activate                         # Start am-server + configure Chrome Lite MCP
+cbx activate                         # Configure Chrome Lite MCP and start a session
 cbx activate --poller                # Also start a message polling session
 cbx status                           # Show health of all services and sessions
 ```
@@ -137,7 +137,7 @@ DISPLAY=:99 npx playwright test --headed
 Ports: noVNC web viewer on `6080`, VNC server on `5900`.
 Set `ENABLE_VNC=true` env var to auto-start on boot.
 
-## Chrome Lite MCP (Message Polling)
+## Chrome Lite MCP
 
 Chrome Lite MCP provides browser automation via an MCP server connected to the Chrome extension.
 Use it to read and interact with web apps: Gmail, Discord, Zalo, Messenger, Slack.
@@ -163,14 +163,6 @@ Skills reference: `/home/claude/.claude/chrome-lite-mcp-skills.md`
 
 1. Navigate to each app (Gmail, Discord, Zalo, etc.)
 2. Use `page_eval` with the JS snippets from the skills reference to extract messages
-3. Push structured messages to am-server:
-
-```bash
-curl -X POST http://localhost:8090/ingest \
-  -H "X-API-Key: $AM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '[{"source":"gmail","sender":"Name","subject":"Subject","preview":"Message..."}]'
-```
 
 ### Key patterns
 

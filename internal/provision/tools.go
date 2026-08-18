@@ -17,7 +17,7 @@ type Tool struct {
 func AllTools() []Tool {
 	return []Tool{
 		{
-			Name:  "System dependencies",
+			Name: "System dependencies",
 			Check: func() bool {
 				return shell.Which("tmux") && shell.Which("jq") && shell.Which("x11vnc") && shell.Which("websockify") && shell.Which("fluxbox")
 			},
@@ -141,24 +141,6 @@ apt-get install -y cloudflared`)
 			Check: func() bool { return shell.Which("supabase") },
 			Install: func(ctx context.Context) error {
 				_, err := shell.RunShell(ctx, `curl -fsSL https://raw.githubusercontent.com/supabase/cli/main/install.sh | bash`)
-				return err
-			},
-		},
-		{
-			Name:  "am-server",
-			Check: func() bool { return shell.FileExists("/usr/local/bin/am-server") },
-			Install: func(ctx context.Context) error {
-				script := `
-AM_REPO="vutran1710/am"
-DOWNLOAD_URL=$(curl -sL "https://api.github.com/repos/${AM_REPO}/releases/latest" | grep -o 'https://[^"]*am-server-linux-amd64[^"]*' | head -1)
-if [ -n "$DOWNLOAD_URL" ]; then
-    curl -sL "$DOWNLOAD_URL" -o /usr/local/bin/am-server
-    chmod +x /usr/local/bin/am-server
-else
-    echo "Failed to find am-server release" >&2
-    exit 1
-fi`
-				_, err := shell.RunShell(ctx, script)
 				return err
 			},
 		},

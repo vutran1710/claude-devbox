@@ -15,7 +15,6 @@ import (
 	"github.com/vutran1710/claudebox/internal/auth"
 	"github.com/vutran1710/claudebox/internal/provision"
 	"github.com/vutran1710/claudebox/internal/serve"
-	"github.com/vutran1710/claudebox/internal/service"
 	"github.com/vutran1710/claudebox/internal/session"
 	"github.com/vutran1710/claudebox/internal/shell"
 	"github.com/vutran1710/claudebox/internal/ui"
@@ -33,7 +32,6 @@ const (
 	phaseAuthInput
 	phaseAuthSubmit
 	phaseVNC
-	phaseAMServer
 	phaseServe
 	phaseMaster
 	phaseDone
@@ -57,7 +55,6 @@ type model struct {
 	oauthURL   string
 	authResult *auth.OAuthResult
 	vncInfo    *vnc.VNCInfo
-	amStatus   service.Status
 	serveURL   string
 	masterURL  string
 	masterErr  error
@@ -173,11 +170,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ui.VNCReadyMsg:
 		m.vncInfo = &vnc.VNCInfo{TunnelURL: msg.URL, Password: msg.Password}
-		m.phase = phaseAMServer
-		return m, startAMServer()
-
-	case amServerReadyMsg:
-		m.amStatus = msg.status
 		m.phase = phaseServe
 		return m, startServe()
 
@@ -221,8 +213,7 @@ func (m model) View() string {
 		spinning phase // show spinner during this phase
 	}{
 		{"Login successful", phaseVNC, phaseOAuth},
-		{"VNC + Chrome started", phaseAMServer, phaseVNC},
-		{"am-server started", phaseServe, phaseAMServer},
+		{"VNC + Chrome started", phaseServe, phaseVNC},
 		{"API daemon started", phaseMaster, phaseServe},
 		{"Master session started", phaseDone, phaseMaster},
 	}
@@ -269,14 +260,6 @@ func getTemplateData(m model) map[string]string {
 	if serveURL == "" {
 		serveURL = "http://localhost:8091"
 	}
-	amURL := m.amStatus.TunnelURL
-	if amURL == "" {
-		amURL = "http://localhost:8090"
-	}
-	amKey := ""
-	if key, ok := m.amStatus.Extra["api_key"]; ok {
-		amKey = key
-	}
 	masterNote := m.masterURL
 	if masterNote == "" {
 		masterNote = "not started"
@@ -287,8 +270,6 @@ func getTemplateData(m model) map[string]string {
 	return map[string]string{
 		"VNCURL":     vncURL,
 		"VNCPass":    vncPass,
-		"AMURL":      amURL,
-		"AMKey":      amKey,
 		"ServeURL":   serveURL,
 		"ServeKey":   serve.GetAPIKey(),
 		"MasterName": MasterSession,
@@ -303,9 +284,6 @@ func renderDoneOutput(m model) string {
 	fmt.Fprintf(&b, "\n  Master:    %s\n", ui.StyleValue.Render(data["MasterURL"]))
 	fmt.Fprintf(&b, "  VNC:       %s\n", ui.StyleValue.Render(data["VNCURL"]))
 	fmt.Fprintf(&b, "  Password:  %s\n", data["VNCPass"])
-	if data["AMURL"] != "" {
-		fmt.Fprintf(&b, "  am-server: %s\n", ui.StyleValue.Render(data["AMURL"]))
-	}
 	b.WriteString("\n  Setup complete. Skill file printed below.\n")
 	return b.String()
 }
@@ -339,7 +317,6 @@ func renderTemplate(tmplStr string, data map[string]string) string {
 
 type cloudInitDoneMsg struct{}
 type userCreatedMsg struct{}
-type amServerReadyMsg struct{ status service.Status }
 type serveReadyMsg struct{ tunnelURL string }
 type masterReadyMsg struct {
 	rcURL string
@@ -442,16 +419,6 @@ func startVNC() tea.Cmd {
 			return ui.ErrMsg{Err: err}
 		}
 		return ui.VNCReadyMsg{URL: info.TunnelURL, Password: info.Password}
-	}
-}
-
-func startAMServer() tea.Cmd {
-	return func() tea.Msg {
-		am := service.NewAMServer()
-		if err := am.Start(); err != nil {
-			return ui.ErrMsg{Err: fmt.Errorf("am-server: %w", err)}
-		}
-		return amServerReadyMsg{status: am.Status()}
 	}
 }
 
