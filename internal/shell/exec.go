@@ -85,11 +85,6 @@ func ProcessRunning(pattern string) bool {
 	return res.ExitCode == 0
 }
 
-func SystemdActive(service string) bool {
-	res, _ := RunTimeout(5*time.Second, "systemctl", "is-active", service)
-	return res.Stdout == "active\n" || res.Stdout == "active"
-}
-
 func GetPublicIP() string {
 	res, err := RunTimeout(10*time.Second, "curl", "-sf", "https://ifconfig.me")
 	if err != nil {
