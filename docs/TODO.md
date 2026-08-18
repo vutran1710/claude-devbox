@@ -27,14 +27,13 @@
 - [x] Unified `cbx code <name> [--repo]` — smart resolution
 - [x] Duplicate session check
 - [x] gh auth via token file (cloud-init → setup)
-- [x] am-server started with tunnel during setup
 - [x] Skill-formatted output ready to save as SKILL.md
 
 ## Done
 
 ### ClaudeBox core (main branch)
 - [x] `cbx setup` — install tools, OAuth, VNC, master session
-- [x] `cbx activate` — am-server, Chrome Lite MCP config, Claude session
+- [x] `cbx activate` — Chrome Lite MCP config, Claude session
 - [x] `cbx code` — spawn sessions with -g (GitHub) and -p (project)
 - [x] `cbx code --headless` — non-interactive mode for master session
 - [x] `cbx status` — show all services + sessions
@@ -43,7 +42,7 @@
 - [x] Cobra CLI, version injection from git tag
 - [x] Cloud-init wait, dpkg lock handling, unattended-upgrades
 - [x] Deploy/undeploy via GitHub Actions (DO + Railway, default Singapore)
-- [x] Cloudflare tunnels for VNC + am-server
+- [x] Cloudflare tunnel for VNC
 
 ### Chrome Lite MCP
 - [x] Plugin system: loader, scheduler, API (plugins/tools/get/post/create_job)
@@ -51,14 +50,8 @@
 - [x] Extension side panel UI for plugin status
 - [x] Gmail plugin: list, read, get_unread, select, mark_read, delete, archive
 - [x] Discord, Zalo, Messenger, Slack plugin stubs
-- [x] Background jobs with webhook delivery
 - [x] Typed results: { type, data, metadata }
 - [x] 35 unit tests
-
-### am-server
-- [x] /webhook/chrome-lite-mcp endpoint
-- [x] Array expansion into individual messages
-- [x] Field extraction (sender, subject, preview)
 
 ## Future
 

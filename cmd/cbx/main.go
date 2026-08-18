@@ -52,9 +52,9 @@ func activateCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "activate",
-		Short: "Start am-server, Claude session, optional poller",
-		Long: `Starts am-server, configures Chrome Lite MCP, and spawns a Claude Code
-session with remote-control and dangerously-skip-permissions enabled.
+		Short: "Configure Chrome Lite MCP and start a Claude session",
+		Long: `Configures Chrome Lite MCP and spawns a Claude Code session with
+remote-control and dangerously-skip-permissions enabled.
 Run as claude user.
 
   ssh -t claude@<host> 'cbx activate'

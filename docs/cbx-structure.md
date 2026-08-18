@@ -4,7 +4,7 @@
 
 ```
 internal/
-├── activate/       ← does 3 things: am-server, MCP config, session spawning
+├── activate/       ← does 2 things: MCP config, session spawning
 ├── auth/           ← does 3 things: OAuth, tmux navigation, user creation
 ├── code/           ← duplicates session logic from serve/ and session/
 ├── serve/          ← duplicates GitHub resolution from code/
@@ -41,7 +41,6 @@ internal/
   │
   ├── service/         ← long-running service management
   │   ├── manager.go   ← interface: Start, Stop, Status
-  │   ├── amserver.go  ← am-server service
   │   ├── vnc.go       ← VNC + Chrome service
   │   └── tunnel.go    ← Cloudflare tunnel management
   │
@@ -112,7 +111,7 @@ type Service interface {
 }
 ```
 
-Implementations: `AMServer`, `VNC`, `Tunnel`
+Implementations: `VNC`, `Tunnel`
 Used by: `cli/setup.go`, `cli/status.go`
 
 ### Workspace
@@ -141,7 +140,6 @@ cli/setup.go
   → provision/user.go       create claude user
   → auth/oauth.go           authenticate Claude
   → service/vnc.go          start VNC + Chrome
-  → service/amserver.go     start am-server
   → api/daemon.go           start cbx serve daemon
   → service/tunnel.go       start tunnels
   → print output
@@ -186,7 +184,7 @@ cli/status.go
 1. Extract `workspace/resolve.go` from `code/` and `serve/`
 2. Clean `session/` — remove user switching (that's provision's job)
 3. Split `auth/` — move user creation to `provision/user.go`
-4. Split `activate/` — am-server to `service/amserver.go`, MCP config to `provision/user.go`
+4. Split `activate/` — MCP config to `provision/user.go`
 5. Rewrite `serve/` as `api/` using session/ and workspace/
 6. Rewrite `code/` as `cli/code.go` using session/ and workspace/
 7. Rewrite `status/` as `cli/status.go` using service/ and session/

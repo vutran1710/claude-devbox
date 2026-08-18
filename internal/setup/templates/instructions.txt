@@ -1,6 +1,6 @@
 ---
 name: claudebox
-description: Manage ClaudeBox remote server — create sessions, query messages, and interact with the server API.
+description: Manage ClaudeBox remote server — create sessions and interact with the server API.
 ---
 
 # ClaudeBox Remote Server
@@ -25,18 +25,6 @@ Auth: `X-API-Key: {{.ServeKey}}`
 | GET | /sessions | — | List active sessions |
 | DELETE | /sessions/{name} | — | Kill a session |
 | GET | /health | — | Health check |
-
-## Message API
-
-Base URL: {{.AMURL}}
-Auth: `X-API-Key: {{.AMKey}}`
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/messages | List messages (`?source=gmail`, `?q=search`) |
-| GET | /api/messages/{id} | Get single message |
-| GET | /api/stats | Counts by source |
-| POST | /webhook/chrome-lite-mcp | Webhook for background jobs |
 
 ## Examples
 
@@ -64,14 +52,4 @@ curl {{.ServeURL}}/sessions -H "X-API-Key: {{.ServeKey}}"
 Kill a session:
 ```bash
 curl -X DELETE {{.ServeURL}}/sessions/my-app -H "X-API-Key: {{.ServeKey}}"
-```
-
-Read messages:
-```bash
-curl "{{.AMURL}}/api/messages?source=gmail" -H "X-API-Key: {{.AMKey}}"
-```
-
-Message stats:
-```bash
-curl "{{.AMURL}}/api/stats" -H "X-API-Key: {{.AMKey}}"
 ```

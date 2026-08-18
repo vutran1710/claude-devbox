@@ -1,11 +1,11 @@
 ---
 name: chrome-lite-mcp
-description: Use Chrome Lite MCP to read and interact with web apps (Gmail, Discord, Zalo, Messenger, Slack), then push messages to am-server for persistent storage and querying.
+description: Use Chrome Lite MCP to read and interact with web apps (Gmail, Discord, Zalo, Messenger, Slack).
 ---
 
-# Chrome Lite MCP + am-server
+# Chrome Lite MCP
 
-Chrome Lite MCP provides browser automation via MCP tools. Use it to read messages from web apps and push them to am-server.
+Chrome Lite MCP provides browser automation via MCP tools. Use it to read messages from web apps.
 
 ## Chrome Lite MCP Tools
 
@@ -121,87 +121,14 @@ function realClick(el) {
 })()
 ```
 
-## Pushing to am-server
-
-After reading messages, push them to am-server for persistent storage.
-
-### am-server API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/ingest` | Push messages (single or array) |
-| GET | `/api/messages` | List/search messages |
-| GET | `/api/messages/{id}` | Get single message |
-| GET | `/api/stats` | Message counts by source |
-
-**Auth:** `X-API-Key` header. Key is in `~/.agent-mesh/config.toml`.
-**Server:** `http://localhost:8090`
-
-### Message schema
-
-```json
-{
-  "source": "gmail|discord|zalo|messenger|slack",
-  "sender": "Display Name",
-  "subject": "Email subject or chat/channel name",
-  "preview": "First ~100 chars of message content",
-  "raw": {},
-  "source_ts": "2026-04-02T10:00:00Z"
-}
-```
-
-### Ingest examples
-
-```bash
-# Push Gmail messages
-curl -s -X POST http://localhost:8090/ingest \
-  -H "X-API-Key: $AM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"source":"gmail","sender":"Vu Tran","subject":"CI failed","preview":"Rebuild Index failed..."},
-    {"source":"gmail","sender":"Google","subject":"Security alert","preview":"New sign-in on Mac..."}
-  ]'
-
-# Push Discord messages
-curl -s -X POST http://localhost:8090/ingest \
-  -H "X-API-Key: $AM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '[{"source":"discord","sender":"Bruno","subject":"DM","preview":"how are you"}]'
-
-# Push Zalo messages
-curl -s -X POST http://localhost:8090/ingest \
-  -H "X-API-Key: $AM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '[{"source":"zalo","sender":"Tuan Anh","subject":"1Chat","preview":"anh can rua 2-3tr..."}]'
-```
-
-### Query messages
-
-```bash
-# All messages from Gmail
-curl -s "http://localhost:8090/api/messages?source=gmail" -H "X-API-Key: $AM_API_KEY"
-
-# Search across all sources
-curl -s "http://localhost:8090/api/messages?q=security+alert" -H "X-API-Key: $AM_API_KEY"
-
-# Messages since a specific time
-curl -s "http://localhost:8090/api/messages?since=2026-04-02T00:00:00Z" -H "X-API-Key: $AM_API_KEY"
-
-# Stats by source
-curl -s "http://localhost:8090/api/stats" -H "X-API-Key: $AM_API_KEY"
-```
-
 ## Full Workflow: Check All Messages
 
 ```
-1. Read AM_API_KEY from ~/.agent-mesh/config.toml
-
-2. For each app:
+1. For each app:
    a. tab_navigate to the app URL
    b. page_eval with the app-specific JS snippet to extract messages
-   c. POST results to http://localhost:8090/ingest
 
-3. Summarize what's new for the user
+2. Summarize what's new for the user
 ```
 
 ## Replying to Messages
