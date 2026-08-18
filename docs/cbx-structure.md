@@ -4,6 +4,7 @@
 
 ```
 internal/
+├── activate/       ← spawns the claude-main session
 ├── auth/           ← does 3 things: OAuth, tmux navigation, user creation
 ├── code/           ← duplicates session logic from serve/ and session/
 ├── serve/          ← duplicates GitHub resolution from code/
@@ -182,8 +183,8 @@ cli/status.go
 1. Extract `workspace/resolve.go` from `code/` and `serve/`
 2. Clean `session/` — remove user switching (that's provision's job)
 3. Split `auth/` — move user creation to `provision/user.go`
-4. Split `activate/` — session spawning to `session/`
+4. Slim `activate/` down to session spawning
 5. Rewrite `serve/` as `api/` using session/ and workspace/
 6. Rewrite `code/` as `cli/code.go` using session/ and workspace/
 7. Rewrite `status/` as `cli/status.go` using service/ and session/
-8. Delete `activate/`, old `code/`, old `serve/`
+8. Delete old `code/`, old `serve/`

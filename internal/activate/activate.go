@@ -1,0 +1,94 @@
+package activate
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/vutran1710/claudebox/internal/session"
+	"github.com/vutran1710/claudebox/internal/ui"
+)
+
+// MainSession is the session cbx activate brings up for the claude user.
+const MainSession = "claude-main"
+
+type activateModel struct {
+	spinner spinner.Model
+	steps   []ui.Step
+	rcURL   string
+	done    bool
+	err     error
+}
+
+func Run() error {
+	m := activateModel{
+		spinner: ui.NewSpinner(),
+		steps:   []ui.Step{{Name: "Start Claude Code session", State: ui.StepRunning}},
+	}
+	p := tea.NewProgram(m)
+	if _, err := p.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m activateModel) Init() tea.Cmd {
+	return tea.Batch(m.spinner.Tick, doStartClaudeSession())
+}
+
+func (m activateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	case claudeSessionReadyMsg:
+		m.steps[0].State = ui.StepDone
+		m.rcURL = msg.rcURL
+		m.done = true
+		return m, tea.Quit
+	case ui.ErrMsg:
+		m.steps[0].State = ui.StepError
+		m.steps[0].Error = msg.Err.Error()
+		m.err = msg.Err
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m activateModel) View() string {
+	var b strings.Builder
+	b.WriteString(ui.StyleBold.Render("  ClaudeBox Activate") + "\n\n")
+	b.WriteString(ui.RenderStepList(m.steps, m.spinner))
+	if m.done {
+		if m.rcURL != "" {
+			b.WriteString("\n" + ui.RenderSummaryBox("Claude Code", []ui.KV{
+				{Key: "Remote Control", Value: m.rcURL},
+				{Key: "Session", Value: MainSession},
+			}))
+		}
+		b.WriteString("\n  " + ui.StyleBold.Render("Attach to session:") + "\n")
+		fmt.Fprintf(&b, "    tmux attach -t %s\n", MainSession)
+	}
+	if m.err != nil {
+		fmt.Fprintf(&b, "\n  %s %s\n", ui.StyleCross.Render(), m.err.Error())
+	}
+	return b.String() + "\n"
+}
+
+type claudeSessionReadyMsg struct{ rcURL string }
+
+func doStartClaudeSession() tea.Cmd {
+	return func() tea.Msg {
+		sess, err := session.NewTmuxManager().Create(MainSession, "")
+		if err != nil {
+			return ui.ErrMsg{Err: err}
+		}
+		return claudeSessionReadyMsg{rcURL: sess.RCURL}
+	}
+}

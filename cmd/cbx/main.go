@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/vutran1710/claudebox/internal/activate"
 	"github.com/vutran1710/claudebox/internal/code"
 	"github.com/vutran1710/claudebox/internal/serve"
 	"github.com/vutran1710/claudebox/internal/setup"
@@ -21,6 +22,7 @@ func main() {
 	}
 
 	root.AddCommand(setupCmd())
+	root.AddCommand(activateCmd())
 	root.AddCommand(codeCmd())
 	root.AddCommand(serveCmd())
 	root.AddCommand(showCmd())
@@ -41,6 +43,21 @@ and starts VNC + Chrome. Run as root.
   ssh -t root@<host> 'cbx setup'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return setup.Run()
+		},
+	}
+}
+
+func activateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "activate",
+		Short: "Start the claude-main Claude Code session",
+		Long: `Spawns the claude-main Claude Code session with remote-control and
+dangerously-skip-permissions enabled, and prints its Remote Control URL.
+Run as claude user.
+
+  ssh -t claude@<host> 'cbx activate'`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return activate.Run()
 		},
 	}
 }
