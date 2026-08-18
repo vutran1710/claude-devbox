@@ -17,7 +17,7 @@ func newTestModel() activateModel {
 }
 
 func TestActivateReportsRemoteControlURL(t *testing.T) {
-	m, _ := newTestModel().Update(claudeSessionReadyMsg{rcURL: "https://claude.ai/code/abc"})
+	m, _ := newTestModel().Update(claudeSessionReadyMsg{rcURL: "https://claude.ai/code/abc", status: "running"})
 	got := m.(activateModel)
 
 	if !got.done {
@@ -51,5 +51,23 @@ func TestActivateSurfacesStartupFailure(t *testing.T) {
 	}
 	if !strings.Contains(got.View(), "not logged in") {
 		t.Errorf("view hides the failure reason:\n%s", got.View())
+	}
+}
+
+// Re-running cbx activate against a live master session must say so, rather
+// than reporting a start that did not happen.
+func TestActivateReportsAnAlreadyRunningSession(t *testing.T) {
+	m, _ := newTestModel().Update(claudeSessionReadyMsg{
+		rcURL:  "https://claude.ai/code/abc",
+		status: "already running",
+	})
+	got := m.(activateModel)
+
+	view := got.View()
+	if !strings.Contains(view, "already running") {
+		t.Errorf("view claims a fresh start for a session that was already up:\n%s", view)
+	}
+	if !strings.Contains(view, "https://claude.ai/code/abc") {
+		t.Errorf("view does not show the existing session's URL:\n%s", view)
 	}
 }

@@ -50,11 +50,11 @@ and starts VNC + Chrome. Run as root.
 func activateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "activate",
-		Short: "Start or restart the master session",
+		Short: "Start the master session",
 		Long: `Brings up the master session — the same always-on session cbx setup
 starts — with remote-control and dangerously-skip-permissions enabled, and
-prints its Remote Control URL. A master session already running is replaced.
-Run as claude user.
+prints its Remote Control URL. A master session already running is left alone
+and its URL reported. Run as claude user.
 
   ssh -t claude@<host> 'cbx activate'`,
 		RunE: func(cmd *cobra.Command, args []string) error {

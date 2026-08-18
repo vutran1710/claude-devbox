@@ -53,6 +53,7 @@ type model struct {
 	vncInfo    *vnc.VNCInfo
 	serveURL   string
 	masterURL  string
+	masterKept bool
 	masterErr  error
 	err        error
 }
@@ -176,6 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case masterReadyMsg:
 		m.masterURL = msg.rcURL
+		m.masterKept = msg.status == "already running"
 		m.masterErr = msg.err
 		m.phase = phaseDone
 		return m, tea.Quit
@@ -211,7 +213,7 @@ func (m model) View() string {
 		{"Login successful", phaseVNC, phaseOAuth},
 		{"VNC + Chrome started", phaseServe, phaseVNC},
 		{"API daemon started", phaseMaster, phaseServe},
-		{"Master session started", phaseDone, phaseMaster},
+		{masterLabel(m.masterKept), phaseDone, phaseMaster},
 	}
 
 	switch m.phase {
@@ -315,8 +317,18 @@ type cloudInitDoneMsg struct{}
 type userCreatedMsg struct{}
 type serveReadyMsg struct{ tunnelURL string }
 type masterReadyMsg struct {
-	rcURL string
-	err   error
+	rcURL  string
+	status string
+	err    error
+}
+
+// masterLabel keeps the progress line honest when setup is re-run against a
+// box whose master session is still up.
+func masterLabel(kept bool) string {
+	if kept {
+		return "Master session already running"
+	}
+	return "Master session started"
 }
 
 // startMaster brings up the always-on session the user drives from their
@@ -328,7 +340,7 @@ func startMaster() tea.Cmd {
 		if err != nil {
 			return masterReadyMsg{err: err}
 		}
-		return masterReadyMsg{rcURL: sess.RCURL}
+		return masterReadyMsg{rcURL: sess.RCURL, status: sess.Status}
 	}
 }
 func waitForCloudInit() tea.Cmd {

@@ -33,7 +33,7 @@
 
 ### ClaudeBox core (main branch)
 - [x] `cbx setup` — install tools, OAuth, VNC, master session
-- [x] `cbx activate` — start or restart the master session
+- [x] `cbx activate` — start the master session, or report the running one
 - [x] `cbx code` — spawn sessions with -g (GitHub) and -p (project)
 - [x] `cbx code --headless` — non-interactive mode for master session
 - [x] `cbx status` — show all services + sessions

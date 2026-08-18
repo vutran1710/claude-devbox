@@ -14,6 +14,7 @@ type activateModel struct {
 	spinner spinner.Model
 	steps   []ui.Step
 	rcURL   string
+	status  string
 	done    bool
 	err     error
 }
@@ -47,6 +48,10 @@ func (m activateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case claudeSessionReadyMsg:
 		m.steps[0].State = ui.StepDone
 		m.rcURL = msg.rcURL
+		m.status = msg.status
+		if msg.status == "already running" {
+			m.steps[0].Name = "Master session already running"
+		}
 		m.done = true
 		return m, tea.Quit
 	case ui.ErrMsg:
@@ -67,6 +72,7 @@ func (m activateModel) View() string {
 			b.WriteString("\n" + ui.RenderSummaryBox("Claude Code", []ui.KV{
 				{Key: "Remote Control", Value: m.rcURL},
 				{Key: "Session", Value: master.Name},
+				{Key: "Status", Value: m.status},
 			}))
 		}
 		b.WriteString("\n  " + ui.StyleBold.Render("Attach to session:") + "\n")
@@ -78,7 +84,7 @@ func (m activateModel) View() string {
 	return b.String() + "\n"
 }
 
-type claudeSessionReadyMsg struct{ rcURL string }
+type claudeSessionReadyMsg struct{ rcURL, status string }
 
 func doStartClaudeSession() tea.Cmd {
 	return func() tea.Msg {
@@ -86,6 +92,6 @@ func doStartClaudeSession() tea.Cmd {
 		if err != nil {
 			return ui.ErrMsg{Err: err}
 		}
-		return claudeSessionReadyMsg{rcURL: sess.RCURL}
+		return claudeSessionReadyMsg{rcURL: sess.RCURL, status: sess.Status}
 	}
 }

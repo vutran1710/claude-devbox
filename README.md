@@ -149,7 +149,7 @@ internal/
 tests/              Integration tests + E2E script
 ```
 
-63 tests across 12 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
+66 tests across 12 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
 
 ## Ports
 
