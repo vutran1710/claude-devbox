@@ -13,13 +13,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/vutran1710/claudebox/internal/auth"
+	"github.com/vutran1710/claudebox/internal/master"
 	"github.com/vutran1710/claudebox/internal/provision"
 	"github.com/vutran1710/claudebox/internal/serve"
-	"github.com/vutran1710/claudebox/internal/session"
 	"github.com/vutran1710/claudebox/internal/shell"
 	"github.com/vutran1710/claudebox/internal/ui"
 	"github.com/vutran1710/claudebox/internal/vnc"
-	"github.com/vutran1710/claudebox/internal/workspace"
 )
 
 type phase int
@@ -36,9 +35,6 @@ const (
 	phaseMaster
 	phaseDone
 )
-
-// MasterSession is the always-on session the user drives from their phone.
-const MasterSession = "master"
 
 // Critical tools that must succeed for setup to continue
 var criticalTools = map[string]bool{
@@ -272,7 +268,7 @@ func getTemplateData(m model) map[string]string {
 		"VNCPass":    vncPass,
 		"ServeURL":   serveURL,
 		"ServeKey":   serve.GetAPIKey(),
-		"MasterName": MasterSession,
+		"MasterName": master.Name,
 		"MasterURL":  masterNote,
 	}
 }
@@ -328,11 +324,7 @@ type masterReadyMsg struct {
 // service is already up and the session can be started later with cbx code.
 func startMaster() tea.Cmd {
 	return func() tea.Msg {
-		dir, err := workspace.Resolve(MasterSession, "")
-		if err != nil {
-			return masterReadyMsg{err: err}
-		}
-		sess, err := session.NewTmuxManager().Create(MasterSession, dir.Dir)
+		sess, err := master.Start()
 		if err != nil {
 			return masterReadyMsg{err: err}
 		}

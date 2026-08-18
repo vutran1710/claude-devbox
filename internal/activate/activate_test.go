@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vutran1710/claudebox/internal/master"
 	"github.com/vutran1710/claudebox/internal/ui"
 )
 
 func newTestModel() activateModel {
 	return activateModel{
 		spinner: ui.NewSpinner(),
-		steps:   []ui.Step{{Name: "Start Claude Code session", State: ui.StepRunning}},
+		steps:   []ui.Step{{Name: "Start the master session", State: ui.StepRunning}},
 	}
 }
 
@@ -31,8 +32,8 @@ func TestActivateReportsRemoteControlURL(t *testing.T) {
 	}
 	// The URL is the whole point of the command — without the session name the
 	// user cannot attach to it over SSH.
-	if !strings.Contains(view, MainSession) {
-		t.Errorf("view does not name the %s session:\n%s", MainSession, view)
+	if !strings.Contains(view, master.Name) {
+		t.Errorf("view does not name the %s session:\n%s", master.Name, view)
 	}
 }
 

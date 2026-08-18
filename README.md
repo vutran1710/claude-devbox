@@ -138,6 +138,7 @@ internal/
   provision/        Tool installation + user creation
   workspace/        Smart project resolution (find/clone/create)
   session/          Manager interface + TmuxManager
+  master/           The always-on master session (shared by setup + activate)
   service/          Service interface (VNC)
   serve/            HTTP API server with auth
   setup/            TUI setup flow + skill template
@@ -148,7 +149,7 @@ internal/
 tests/              Integration tests + E2E script
 ```
 
-49 tests across 10 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
+63 tests across 12 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
 
 ## Ports
 

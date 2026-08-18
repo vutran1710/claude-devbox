@@ -6,12 +6,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/vutran1710/claudebox/internal/session"
+	"github.com/vutran1710/claudebox/internal/master"
 	"github.com/vutran1710/claudebox/internal/ui"
 )
-
-// MainSession is the session cbx activate brings up for the claude user.
-const MainSession = "claude-main"
 
 type activateModel struct {
 	spinner spinner.Model
@@ -24,7 +21,7 @@ type activateModel struct {
 func Run() error {
 	m := activateModel{
 		spinner: ui.NewSpinner(),
-		steps:   []ui.Step{{Name: "Start Claude Code session", State: ui.StepRunning}},
+		steps:   []ui.Step{{Name: "Start the master session", State: ui.StepRunning}},
 	}
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
@@ -69,11 +66,11 @@ func (m activateModel) View() string {
 		if m.rcURL != "" {
 			b.WriteString("\n" + ui.RenderSummaryBox("Claude Code", []ui.KV{
 				{Key: "Remote Control", Value: m.rcURL},
-				{Key: "Session", Value: MainSession},
+				{Key: "Session", Value: master.Name},
 			}))
 		}
 		b.WriteString("\n  " + ui.StyleBold.Render("Attach to session:") + "\n")
-		fmt.Fprintf(&b, "    tmux attach -t %s\n", MainSession)
+		fmt.Fprintf(&b, "    tmux attach -t %s\n", master.Name)
 	}
 	if m.err != nil {
 		fmt.Fprintf(&b, "\n  %s %s\n", ui.StyleCross.Render(), m.err.Error())
@@ -85,7 +82,7 @@ type claudeSessionReadyMsg struct{ rcURL string }
 
 func doStartClaudeSession() tea.Cmd {
 	return func() tea.Msg {
-		sess, err := session.NewTmuxManager().Create(MainSession, "")
+		sess, err := master.Start()
 		if err != nil {
 			return ui.ErrMsg{Err: err}
 		}
