@@ -6,13 +6,55 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/vutran1710/claudebox/internal/master"
 	"github.com/vutran1710/claudebox/internal/session"
 	"github.com/vutran1710/claudebox/internal/ui"
 	"github.com/vutran1710/claudebox/internal/workspace"
 )
 
+// masterRequest reports whether this invocation targets the master session, and
+// rejects the flags that do not apply to it. cbx code otherwise goes straight to
+// TmuxManager.Create, which opens by killing the session it is asked for — so
+// without this, cbx code master would destroy the session cbx setup and cbx
+// activate deliberately leave alone.
+func masterRequest(name, repo string) (bool, error) {
+	if name != master.Name {
+		return false, nil
+	}
+	if repo != "" {
+		return true, fmt.Errorf("the %s session's workspace is managed by cbx — clone into a session of its own with 'cbx code <name> --repo %s'", master.Name, repo)
+	}
+	return true, nil
+}
+
+// runMaster hands the master session to the package that owns it, so every path
+// that starts it makes the same decision about a session already running.
+func runMaster() error {
+	sess, err := master.Start()
+	if err != nil {
+		return err
+	}
+	if sess.Status == "already running" {
+		fmt.Printf("Session '%s' already running\n", sess.Name)
+	} else {
+		fmt.Printf("Session '%s' started\n", sess.Name)
+		fmt.Printf("Working dir: %s\n", sess.Dir)
+	}
+	if sess.RCURL != "" {
+		fmt.Printf("Remote Control: %s\n", sess.RCURL)
+	}
+	fmt.Printf("Attach: tmux attach -t %s\n", sess.Name)
+	return nil
+}
+
 // RunHeadless runs without TUI.
 func RunHeadless(name, repo string) error {
+	if isMaster, err := masterRequest(name, repo); err != nil {
+		return err
+	} else if isMaster {
+		return runMaster()
+	}
+
 	result, err := workspace.Resolve(name, repo)
 	if err != nil {
 		return err
@@ -36,6 +78,11 @@ func RunHeadless(name, repo string) error {
 
 // Run starts the TUI or headless mode.
 func Run(name, repo string, headless bool) error {
+	if isMaster, err := masterRequest(name, repo); err != nil {
+		return err
+	} else if isMaster {
+		return runMaster()
+	}
 	if headless {
 		return RunHeadless(name, repo)
 	}

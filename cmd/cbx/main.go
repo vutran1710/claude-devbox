@@ -78,6 +78,9 @@ The name maps to a directory in /workspace:
   - If --repo is set, clones the repo there
   - Otherwise, creates a new directory with git init
 
+The master session is owned by cbx: 'cbx code master' reports the running
+session rather than restarting it.
+
 Examples:
   cbx code hello-world                     # find or create /workspace/hello-world
   cbx code my-app --repo owner/repo        # clone GitHub repo
