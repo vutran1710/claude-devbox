@@ -144,27 +144,6 @@ apt-get install -y cloudflared`)
 				return err
 			},
 		},
-		{
-			Name: "Chrome Lite MCP",
-			Check: func() bool {
-				return shell.FileExists("/opt/chrome-lite-mcp/server/index.js") &&
-					shell.FileExists("/opt/chrome-lite-mcp/extension/background.js")
-			},
-			Install: func(ctx context.Context) error {
-				script := `
-REPO="vutran1710/chrome-lite-mcp"
-DOWNLOAD_URL=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep -o 'https://[^"]*chrome-lite-mcp-.*\.tar\.gz[^"]*' | head -1)
-if [ -n "$DOWNLOAD_URL" ]; then
-    mkdir -p /opt/chrome-lite-mcp
-    curl -sL "$DOWNLOAD_URL" | tar -xz -C /opt/chrome-lite-mcp
-else
-    echo "Failed to find chrome-lite-mcp release" >&2
-    exit 1
-fi`
-				_, err := shell.RunShell(ctx, script)
-				return err
-			},
-		},
 	}
 }
 

@@ -3,7 +3,6 @@ package status
 import (
 	"fmt"
 
-	"github.com/vutran1710/claudebox/internal/activate"
 	"github.com/vutran1710/claudebox/internal/auth"
 	"github.com/vutran1710/claudebox/internal/serve"
 	"github.com/vutran1710/claudebox/internal/service"
@@ -43,14 +42,6 @@ func Run() {
 		fmt.Println(ui.StatusLine("Chrome", true, "running"))
 	} else {
 		fmt.Println(ui.StatusLine("Chrome", false, "not running"))
-	}
-
-	// Chrome Lite MCP
-	chromeMCP := activate.IsChromeMCPConfigured()
-	if chromeMCP {
-		fmt.Println(ui.StatusLine("Chrome Lite MCP", true, "configured"))
-	} else {
-		fmt.Println(ui.StatusLine("Chrome Lite MCP", false, "not configured"))
 	}
 
 	// API Daemon

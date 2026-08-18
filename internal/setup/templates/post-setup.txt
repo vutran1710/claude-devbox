@@ -2,9 +2,6 @@
   Open the master session on your phone to start working:
     {{.MasterURL}}
 
-  To log into web apps, open VNC URL and sign in to
-  Gmail, Discord, Zalo, etc. in Chrome.
-
   Save the block below as a skill file:
     ~/.claude/skills/claudebox/SKILL.md
 

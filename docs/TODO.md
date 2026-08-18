@@ -33,7 +33,6 @@
 
 ### ClaudeBox core (main branch)
 - [x] `cbx setup` — install tools, OAuth, VNC, master session
-- [x] `cbx activate` — Chrome Lite MCP config, Claude session
 - [x] `cbx code` — spawn sessions with -g (GitHub) and -p (project)
 - [x] `cbx code --headless` — non-interactive mode for master session
 - [x] `cbx status` — show all services + sessions
@@ -44,27 +43,8 @@
 - [x] Deploy/undeploy via GitHub Actions (DO + Railway, default Singapore)
 - [x] Cloudflare tunnel for VNC
 
-### Chrome Lite MCP
-- [x] Plugin system: loader, scheduler, API (plugins/tools/get/post/create_job)
-- [x] Plugin lifecycle: init → awaiting_login → confirm → ready
-- [x] Extension side panel UI for plugin status
-- [x] Gmail plugin: list, read, get_unread, select, mark_read, delete, archive
-- [x] Discord, Zalo, Messenger, Slack plugin stubs
-- [x] Typed results: { type, data, metadata }
-- [x] 35 unit tests
-
 ## Future
 
-### Plugins to develop
-- [ ] GitHub plugin (notifications, PRs, issues)
-- [ ] Google Calendar plugin
-- [ ] Telegram plugin
-- [ ] Custom webhook receiver plugin
-
 ### Features
-- [ ] Plugin hot-reload (watch plugins/ dir)
-- [ ] Job persistence (survive server restart)
-- [ ] Plugin config (per-plugin settings file)
 - [ ] Rate limiting on serve API
 - [ ] Session auto-cleanup (kill idle sessions)
-- [ ] TypeScript type definitions for plugin interface

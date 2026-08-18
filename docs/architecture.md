@@ -26,13 +26,8 @@ ClaudeBox (cloud server)
   │   ├── master                             ← always-on session, Remote Control
   │   └── {project}                          ← project sessions
   │
-  ├── Chrome Lite MCP (port 7331)            ← browser automation
-  │   ├── Plugin system (gmail, discord, zalo, messenger, slack)
-  │   ├── Background jobs (scheduler)
-  │   └── Chrome extension (side panel UI)
-  │
   └── VNC desktop (port 6080)                ← visual access
-      ├── Chrome + MCP extension
+      ├── Chrome
       └── Cloudflare tunnel → public URL
 ```
 
@@ -67,15 +62,6 @@ cbx code my-project --repo owner/repo
 cbx code existing-project
 ```
 
-## Data Flow (Message Polling)
-
-```
-1. Claude or scheduler calls: create_job("gmail", { tool: "get_unread", ... })
-2. Scheduler runs get_unread every N minutes
-3. Gmail plugin opens Chrome tab, runs JS, extracts emails
-4. Results are returned to the caller as typed { type, data, metadata } payloads
-```
-
 ## Ports
 
 | Port | Service | Access |
@@ -83,7 +69,6 @@ cbx code existing-project
 | 22   | SSH | Direct (key auth) |
 | 5900 | VNC | localhost → Cloudflare tunnel |
 | 6080 | noVNC | localhost → Cloudflare tunnel |
-| 7331 | Chrome Lite MCP | localhost only |
 | 8091 | cbx serve | localhost → Cloudflare tunnel |
 
 ## Repos
@@ -91,4 +76,3 @@ cbx code existing-project
 | Repo | Purpose |
 |------|---------|
 | [claudebox](https://github.com/vutran1710/claudebox) | Server setup, CLI, session management |
-| [chrome-lite-mcp](https://github.com/vutran1710/chrome-lite-mcp) | Browser automation MCP with plugin system |
