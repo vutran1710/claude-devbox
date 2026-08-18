@@ -60,10 +60,10 @@ func applyOwner(dir string, uid, gid int) error {
 	})
 }
 
-// ensureOwner hands dir to the user that sessions run as. Without this a
+// EnsureOwner hands path to the user that sessions run as. Without this a
 // workspace created by the root-owned cbx serve daemon is read-only to the
-// session working in it.
-func ensureOwner(dir string) error {
+// session working in it. path may be a single file as well as a directory.
+func EnsureOwner(path string) error {
 	uid, gid, ok, err := ownerIDs(Owner)
 	if err != nil {
 		return err
@@ -71,8 +71,8 @@ func ensureOwner(dir string) error {
 	if !ok {
 		return nil
 	}
-	if err := applyOwner(dir, uid, gid); err != nil {
-		return fmt.Errorf("failed to give %s to %s: %w", dir, Owner, err)
+	if err := applyOwner(path, uid, gid); err != nil {
+		return fmt.Errorf("failed to give %s to %s: %w", path, Owner, err)
 	}
 	return nil
 }
@@ -103,7 +103,7 @@ func ResolveIn(root, name, repo string) (*ResolveResult, error) {
 			}
 			status = "cloned"
 		}
-		if err := ensureOwner(dir); err != nil {
+		if err := EnsureOwner(dir); err != nil {
 			return nil, err
 		}
 		return &ResolveResult{Dir: dir, Status: status}, nil
@@ -118,7 +118,7 @@ func ResolveIn(root, name, repo string) (*ResolveResult, error) {
 		shell.RunShellTimeout(10*time.Second, fmt.Sprintf(`cd %s && git init`, dir))
 		status = "created"
 	}
-	if err := ensureOwner(dir); err != nil {
+	if err := EnsureOwner(dir); err != nil {
 		return nil, err
 	}
 	return &ResolveResult{Dir: dir, Status: status}, nil

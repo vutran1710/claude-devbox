@@ -4,7 +4,8 @@
 
 ```
 internal/
-├── activate/       ← spawns the claude-main session
+├── activate/       ← starts the master session (via master/)
+├── master/         ← the always-on session: name, workspace, startup, state
 ├── auth/           ← does 3 things: OAuth, tmux navigation, user creation
 ├── code/           ← duplicates session logic from serve/ and session/
 ├── serve/          ← duplicates GitHub resolution from code/

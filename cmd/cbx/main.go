@@ -50,10 +50,11 @@ and starts VNC + Chrome. Run as root.
 func activateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "activate",
-		Short: "Start the claude-main Claude Code session",
-		Long: `Spawns the claude-main Claude Code session with remote-control and
-dangerously-skip-permissions enabled, and prints its Remote Control URL.
-Run as claude user.
+		Short: "Start the master session",
+		Long: `Brings up the master session — the same always-on session cbx setup
+starts — with remote-control and dangerously-skip-permissions enabled, and
+prints its Remote Control URL. A master session already running is left alone
+and its URL reported. Run as claude user.
 
   ssh -t claude@<host> 'cbx activate'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,6 +77,9 @@ The name maps to a directory in /workspace:
   - If the directory exists, opens it
   - If --repo is set, clones the repo there
   - Otherwise, creates a new directory with git init
+
+The master session is owned by cbx: 'cbx code master' reports the running
+session rather than restarting it.
 
 Examples:
   cbx code hello-world                     # find or create /workspace/hello-world

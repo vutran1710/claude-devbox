@@ -10,7 +10,7 @@ You can manage the server using `cbx` commands:
 ```bash
 cbx code --headless my-app --repo owner/repo   # Clone repo and start session
 cbx code --headless my-app                     # Find or create /workspace/my-app
-cbx activate                                   # Start the claude-main session
+cbx activate                                   # Start the master session (no-op if up)
 cbx status                                     # Show health of all services and sessions
 ```
 

@@ -13,13 +13,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/vutran1710/claudebox/internal/auth"
+	"github.com/vutran1710/claudebox/internal/master"
 	"github.com/vutran1710/claudebox/internal/provision"
 	"github.com/vutran1710/claudebox/internal/serve"
-	"github.com/vutran1710/claudebox/internal/session"
 	"github.com/vutran1710/claudebox/internal/shell"
 	"github.com/vutran1710/claudebox/internal/ui"
 	"github.com/vutran1710/claudebox/internal/vnc"
-	"github.com/vutran1710/claudebox/internal/workspace"
 )
 
 type phase int
@@ -36,9 +35,6 @@ const (
 	phaseMaster
 	phaseDone
 )
-
-// MasterSession is the always-on session the user drives from their phone.
-const MasterSession = "master"
 
 // Critical tools that must succeed for setup to continue
 var criticalTools = map[string]bool{
@@ -57,6 +53,7 @@ type model struct {
 	vncInfo    *vnc.VNCInfo
 	serveURL   string
 	masterURL  string
+	masterKept bool
 	masterErr  error
 	err        error
 }
@@ -180,6 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case masterReadyMsg:
 		m.masterURL = msg.rcURL
+		m.masterKept = msg.status == "already running"
 		m.masterErr = msg.err
 		m.phase = phaseDone
 		return m, tea.Quit
@@ -215,7 +213,7 @@ func (m model) View() string {
 		{"Login successful", phaseVNC, phaseOAuth},
 		{"VNC + Chrome started", phaseServe, phaseVNC},
 		{"API daemon started", phaseMaster, phaseServe},
-		{"Master session started", phaseDone, phaseMaster},
+		{masterLabel(m.masterKept), phaseDone, phaseMaster},
 	}
 
 	switch m.phase {
@@ -272,7 +270,7 @@ func getTemplateData(m model) map[string]string {
 		"VNCPass":    vncPass,
 		"ServeURL":   serveURL,
 		"ServeKey":   serve.GetAPIKey(),
-		"MasterName": MasterSession,
+		"MasterName": master.Name,
 		"MasterURL":  masterNote,
 	}
 }
@@ -319,8 +317,18 @@ type cloudInitDoneMsg struct{}
 type userCreatedMsg struct{}
 type serveReadyMsg struct{ tunnelURL string }
 type masterReadyMsg struct {
-	rcURL string
-	err   error
+	rcURL  string
+	status string
+	err    error
+}
+
+// masterLabel keeps the progress line honest when setup is re-run against a
+// box whose master session is still up.
+func masterLabel(kept bool) string {
+	if kept {
+		return "Master session already running"
+	}
+	return "Master session started"
 }
 
 // startMaster brings up the always-on session the user drives from their
@@ -328,15 +336,11 @@ type masterReadyMsg struct {
 // service is already up and the session can be started later with cbx code.
 func startMaster() tea.Cmd {
 	return func() tea.Msg {
-		dir, err := workspace.Resolve(MasterSession, "")
+		sess, err := master.Start()
 		if err != nil {
 			return masterReadyMsg{err: err}
 		}
-		sess, err := session.NewTmuxManager().Create(MasterSession, dir.Dir)
-		if err != nil {
-			return masterReadyMsg{err: err}
-		}
-		return masterReadyMsg{rcURL: sess.RCURL}
+		return masterReadyMsg{rcURL: sess.RCURL, status: sess.Status}
 	}
 }
 func waitForCloudInit() tea.Cmd {
