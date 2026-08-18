@@ -10,37 +10,21 @@ import (
 	"github.com/vutran1710/claudebox/internal/ui"
 )
 
-type activatePhase int
-
-const (
-	phaseChromeMCP activatePhase = iota
-	phaseClaudeSession
-	phasePollerSession
-	phaseDone
-)
+// MainSession is the session cbx activate brings up for the claude user.
+const MainSession = "claude-main"
 
 type activateModel struct {
-	phase         activatePhase
-	spinner       spinner.Model
-	steps         []ui.Step
-	rcURL         string
-	pollerEnabled bool
-	err           error
+	spinner spinner.Model
+	steps   []ui.Step
+	rcURL   string
+	done    bool
+	err     error
 }
 
-func Run(withPoller bool) error {
-	steps := []ui.Step{
-		{Name: "Configure Chrome Lite MCP", State: ui.StepRunning},
-		{Name: "Start Claude Code session", State: ui.StepPending},
-	}
-	if withPoller {
-		steps = append(steps, ui.Step{Name: "Start message poller session", State: ui.StepPending})
-	}
+func Run() error {
 	m := activateModel{
-		phase:         phaseChromeMCP,
-		spinner:       ui.NewSpinner(),
-		steps:         steps,
-		pollerEnabled: withPoller,
+		spinner: ui.NewSpinner(),
+		steps:   []ui.Step{{Name: "Start Claude Code session", State: ui.StepRunning}},
 	}
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
@@ -50,7 +34,7 @@ func Run(withPoller bool) error {
 }
 
 func (m activateModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, doConfigureChromeMCP())
+	return tea.Batch(m.spinner.Tick, doStartClaudeSession())
 }
 
 func (m activateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,26 +47,14 @@ func (m activateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-	case chromeMCPReadyMsg:
-		m.steps[0].State = ui.StepDone
-		m.steps[1].State = ui.StepRunning
-		m.phase = phaseClaudeSession
-		return m, doStartClaudeSession()
 	case claudeSessionReadyMsg:
-		m.steps[1].State = ui.StepDone
+		m.steps[0].State = ui.StepDone
 		m.rcURL = msg.rcURL
-		if m.pollerEnabled {
-			m.steps[2].State = ui.StepRunning
-			m.phase = phasePollerSession
-			return m, doStartPollerSession()
-		}
-		m.phase = phaseDone
-		return m, tea.Quit
-	case pollerSessionReadyMsg:
-		m.steps[2].State = ui.StepDone
-		m.phase = phaseDone
+		m.done = true
 		return m, tea.Quit
 	case ui.ErrMsg:
+		m.steps[0].State = ui.StepError
+		m.steps[0].Error = msg.Err.Error()
 		m.err = msg.Err
 		return m, tea.Quit
 	}
@@ -93,56 +65,30 @@ func (m activateModel) View() string {
 	var b strings.Builder
 	b.WriteString(ui.StyleBold.Render("  ClaudeBox Activate") + "\n\n")
 	b.WriteString(ui.RenderStepList(m.steps, m.spinner))
-	if m.phase == phaseDone {
+	if m.done {
 		if m.rcURL != "" {
 			b.WriteString("\n" + ui.RenderSummaryBox("Claude Code", []ui.KV{
 				{Key: "Remote Control", Value: m.rcURL},
-				{Key: "Session", Value: "claude-main"},
+				{Key: "Session", Value: MainSession},
 			}))
 		}
 		b.WriteString("\n  " + ui.StyleBold.Render("Attach to session:") + "\n")
-		b.WriteString("    tmux attach -t claude-main\n")
-		if m.pollerEnabled {
-			b.WriteString("    tmux attach -t claude-poller\n")
-		}
+		fmt.Fprintf(&b, "    tmux attach -t %s\n", MainSession)
 	}
 	if m.err != nil {
-		b.WriteString(fmt.Sprintf("\n  %s %s\n", ui.StyleCross.Render(), m.err.Error()))
+		fmt.Fprintf(&b, "\n  %s %s\n", ui.StyleCross.Render(), m.err.Error())
 	}
 	return b.String() + "\n"
 }
 
-type chromeMCPReadyMsg struct{}
 type claudeSessionReadyMsg struct{ rcURL string }
-type pollerSessionReadyMsg struct{}
-
-func doConfigureChromeMCP() tea.Cmd {
-	return func() tea.Msg {
-		RemoveOldPollers()
-		if err := ConfigureChromeMCP(); err != nil {
-			return ui.ErrMsg{Err: err}
-		}
-		return chromeMCPReadyMsg{}
-	}
-}
 
 func doStartClaudeSession() tea.Cmd {
 	return func() tea.Msg {
-		sess, err := session.NewTmuxManager().Create("claude-main", "")
+		sess, err := session.NewTmuxManager().Create(MainSession, "")
 		if err != nil {
 			return ui.ErrMsg{Err: err}
 		}
 		return claudeSessionReadyMsg{rcURL: sess.RCURL}
-	}
-}
-
-func doStartPollerSession() tea.Cmd {
-	return func() tea.Msg {
-		// Start a second Claude session for message polling
-		_, err := session.NewTmuxManager().Create("claude-poller", "")
-		if err != nil {
-			return ui.ErrMsg{Err: err}
-		}
-		return pollerSessionReadyMsg{}
 	}
 }

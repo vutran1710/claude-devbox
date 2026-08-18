@@ -13,7 +13,7 @@ Deploy Claude Code to a cloud server and access it from your phone, tablet, or a
 - Work from anywhere — phone, iPad, coffee shop laptop
 - Claude Code runs 24/7 with full autonomy, pre-authenticated
 - Session management via HTTP API — create, list, kill sessions remotely
-- Browser automation for Gmail, Discord, Zalo, Messenger via Chrome Lite MCP (optional)
+- Browser automation and end-to-end testing with agent-browser and Playwright
 
 ## Quick Start
 
@@ -107,7 +107,7 @@ cbx setup
   ├── Install 15+ tools
   ├── Create claude user + gh auth
   ├── OAuth authenticate Claude Code
-  ├── Start VNC + Chrome (with MCP extension)
+  ├── Start VNC + Chrome
   ├── Start cbx serve + Cloudflare tunnel
   ├── Start the master session (Remote Control enabled)
   └── Print skill file with URLs, API keys, and the master session URL
@@ -124,7 +124,6 @@ Phone/Tablet/Laptop
         |
 ClaudeBox (cloud server)
   +-- cbx serve (API daemon, Cloudflare tunneled)
-  +-- Chrome Lite MCP (browser automation + plugins)
   +-- VNC desktop (Chrome, Cloudflare tunneled)
 ```
 
@@ -151,17 +150,10 @@ tests/              Integration tests + E2E script
 
 49 tests across 10 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
 
-## Related Repos
-
-| Repo | Purpose |
-|------|---------|
-| [chrome-lite-mcp](https://github.com/vutran1710/chrome-lite-mcp) | Browser automation MCP with plugin system |
-
 ## Ports
 
 | Port | Service | Access |
 |------|---------|--------|
 | 22   | SSH | Direct (key auth) |
 | 6080 | noVNC | Cloudflare tunnel |
-| 7331 | Chrome Lite MCP | localhost only |
 | 8091 | cbx serve | Cloudflare tunnel |

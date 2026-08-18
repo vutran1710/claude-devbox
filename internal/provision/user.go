@@ -42,19 +42,15 @@ chmod 600 /home/claude/.ssh/authorized_keys 2>/dev/null || true`)
 	shell.RunShell(ctx, `mkdir -p /home/claude/.config && cp -r /root/.config/gh /home/claude/.config/gh 2>/dev/null || true`)
 
 	// Seed the claude user's config: mark onboarding complete so sessions come
-	// up at their prompt, and register Chrome Lite MCP if it is installed.
-	// Merges into any existing file — it holds the signed-in account.
-	_, mcpErr := os.Stat("/opt/chrome-lite-mcp/server/index.js")
+	// up at their prompt. Merges into any existing file — it holds the
+	// signed-in account.
 	existing, _ := os.ReadFile("/home/claude/.claude.json")
-	cfg, err := claudeConfig(existing, mcpErr == nil)
+	cfg, err := claudeConfig(existing)
 	if err != nil {
 		return fmt.Errorf("build claude config: %w", err)
 	}
 	if err := os.WriteFile("/home/claude/.claude.json", cfg, 0644); err != nil {
 		return fmt.Errorf("write claude config: %w", err)
-	}
-	if mcpErr == nil {
-		shell.RunShell(ctx, `cp /opt/chrome-lite-mcp/docs/skills.md /home/claude/.claude/chrome-lite-mcp-skills.md 2>/dev/null || true`)
 	}
 
 	// Copy CLAUDE.md and skills to workspace so Claude Code picks them up

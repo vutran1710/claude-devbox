@@ -48,24 +48,18 @@ and starts VNC + Chrome. Run as root.
 }
 
 func activateCmd() *cobra.Command {
-	var withPoller bool
-
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "activate",
-		Short: "Configure Chrome Lite MCP and start a Claude session",
-		Long: `Configures Chrome Lite MCP and spawns a Claude Code session with
-remote-control and dangerously-skip-permissions enabled.
+		Short: "Start the claude-main Claude Code session",
+		Long: `Spawns the claude-main Claude Code session with remote-control and
+dangerously-skip-permissions enabled, and prints its Remote Control URL.
 Run as claude user.
 
-  ssh -t claude@<host> 'cbx activate'
-  ssh -t claude@<host> 'cbx activate --poller'`,
+  ssh -t claude@<host> 'cbx activate'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return activate.Run(withPoller)
+			return activate.Run()
 		},
 	}
-
-	cmd.Flags().BoolVar(&withPoller, "poller", false, "Also spawn a message polling session")
-	return cmd
 }
 
 func codeCmd() *cobra.Command {

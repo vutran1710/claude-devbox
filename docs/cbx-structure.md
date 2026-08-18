@@ -4,7 +4,7 @@
 
 ```
 internal/
-├── activate/       ← does 2 things: MCP config, session spawning
+├── activate/       ← spawns the claude-main session
 ├── auth/           ← does 3 things: OAuth, tmux navigation, user creation
 ├── code/           ← duplicates session logic from serve/ and session/
 ├── serve/          ← duplicates GitHub resolution from code/
@@ -20,8 +20,7 @@ Issues:
 1. **Duplicate logic** — GitHub repo resolution in `code/`, `serve/`, and future places
 2. **Mixed responsibilities** — `auth/` does OAuth + user creation + tmux navigation
 3. **No interfaces** — everything calls concrete implementations directly
-4. **`activate/` is confused** — part service management, part config, part session
-5. **`status/` knows everything** — imports every package, fragile
+4. **`status/` knows everything** — imports every package, fragile
 
 ## Proposed Structure
 
@@ -184,8 +183,8 @@ cli/status.go
 1. Extract `workspace/resolve.go` from `code/` and `serve/`
 2. Clean `session/` — remove user switching (that's provision's job)
 3. Split `auth/` — move user creation to `provision/user.go`
-4. Split `activate/` — MCP config to `provision/user.go`
+4. Slim `activate/` down to session spawning
 5. Rewrite `serve/` as `api/` using session/ and workspace/
 6. Rewrite `code/` as `cli/code.go` using session/ and workspace/
 7. Rewrite `status/` as `cli/status.go` using service/ and session/
-8. Delete `activate/`, old `code/`, old `serve/`
+8. Delete old `code/`, old `serve/`

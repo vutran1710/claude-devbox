@@ -9,7 +9,7 @@ import (
 // hijacks the session with a theme picker and a login screen even though the
 // user is already authenticated.
 func TestClaudeConfig_MarksOnboardingComplete(t *testing.T) {
-	out, err := claudeConfig(nil, false)
+	out, err := claudeConfig(nil)
 	if err != nil {
 		t.Fatalf("claudeConfig: %v", err)
 	}
@@ -23,42 +23,12 @@ func TestClaudeConfig_MarksOnboardingComplete(t *testing.T) {
 	}
 }
 
-func TestClaudeConfig_AddsMCPServersWhenPresent(t *testing.T) {
-	out, err := claudeConfig(nil, true)
-	if err != nil {
-		t.Fatalf("claudeConfig: %v", err)
-	}
-
-	var got map[string]any
-	json.Unmarshal(out, &got)
-	servers, ok := got["mcpServers"].(map[string]any)
-	if !ok {
-		t.Fatalf("mcpServers missing or wrong type: %T", got["mcpServers"])
-	}
-	if _, ok := servers["chrome"]; !ok {
-		t.Errorf("mcpServers has no chrome entry: %v", servers)
-	}
-}
-
-func TestClaudeConfig_OmitsMCPServersWhenAbsent(t *testing.T) {
-	out, err := claudeConfig(nil, false)
-	if err != nil {
-		t.Fatalf("claudeConfig: %v", err)
-	}
-
-	var got map[string]any
-	json.Unmarshal(out, &got)
-	if _, ok := got["mcpServers"]; ok {
-		t.Error("mcpServers written even though chrome-lite-mcp is not installed")
-	}
-}
-
 // The old code wrote this file wholesale, so re-running setup discarded the
 // account Claude Code had recorded there.
 func TestClaudeConfig_PreservesExistingKeys(t *testing.T) {
 	existing := []byte(`{"oauthAccount":{"emailAddress":"dev@caissa.vn"},"userID":"abc123"}`)
 
-	out, err := claudeConfig(existing, true)
+	out, err := claudeConfig(existing)
 	if err != nil {
 		t.Fatalf("claudeConfig: %v", err)
 	}
@@ -77,7 +47,7 @@ func TestClaudeConfig_PreservesExistingKeys(t *testing.T) {
 }
 
 func TestClaudeConfig_RejectsMalformedExisting(t *testing.T) {
-	if _, err := claudeConfig([]byte("{not json"), false); err == nil {
+	if _, err := claudeConfig([]byte("{not json")); err == nil {
 		t.Error("expected an error rather than silently discarding an unreadable config")
 	}
 }
