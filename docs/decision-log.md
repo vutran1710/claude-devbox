@@ -157,3 +157,34 @@ end-to-end case, including that a rejected clone leaves no directory behind.
 **Rule for the rest of this work:** if a value reaches a program that parses
 options, either pass it after `--` via `exec.Command`, or reject a leading
 dash. Quoting alone is not an answer.
+
+## Tool tokens arrive on stdin, never in argv
+
+`gh`, `vercel` and `supabase` are authenticated by piping a token over SSH into
+the tool's login. A token passed as a command-line argument is visible in the
+box's process table to every other user for as long as the command runs, and
+lands in shell history.
+
+The three tools disagree about how to accept one, which is exactly why the
+recipes live in one table rather than scattered through provisioning:
+
+- `gh auth login --with-token` reads stdin. Straightforward.
+- `supabase login --token "$(cat)"` — the substitution happens in the remote
+  shell, so the token is still never in cbx's argv.
+- `vercel` has no stdin login at all; it reads `VERCEL_TOKEN` or `--token`.
+  Its config file is written directly instead, with `umask 077` so it is
+  private from creation rather than chmod-ed after a brief world-readable
+  window. `printf` is a shell builtin, so even there the token never becomes
+  the argv of a forked process.
+
+Every recipe is followed by a verify command. Without one a bad or expired
+token looks exactly like success, and the failure surfaces later inside a
+session with no obvious cause.
+
+Claude Code is deliberately absent from this list: subscription login is an
+interactive browser OAuth with no token path. A test asserts it never appears
+there, so nobody later "adds it for consistency".
+
+Tokens are also read from the local environment (`GH_TOKEN`, `VERCEL_TOKEN`,
+`SUPABASE_ACCESS_TOKEN`) so someone who already has them exported is not asked
+to paste anything.
