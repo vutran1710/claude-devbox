@@ -318,3 +318,33 @@ made. It now locates the binary, links it, and tests the link.
 `str.replace` with a stale anchor is a no-op, and I rebuilt and re-tested
 unchanged code twice before noticing. Edits now assert their anchor exists
 before writing.
+
+## v0.8.0 shipped, droplets cleaned up
+
+Two binaries, eight release artifacts. Only `claudebox` (178.128.118.33)
+remains — every droplet created for validation was destroyed, and no orphaned
+firewalls were left behind.
+
+`claudebox` is still running the **old** cbx from v0.7.0. It has the manual
+`usermod -aG docker claude` fix applied by hand and still uses the dedicated
+`claude` user, so `tmux ls` and `claude auth status` as root still report an
+empty, signed-out box that is neither. Re-provisioning it with the new
+`cbx-setuptool` would retire both problems, but it is a live box with a session
+on it, so that is the owner's call rather than something to do unattended.
+
+## What was not verified
+
+The Claude sign-in is the one step that needs a person: subscription login is a
+browser OAuth with no token path. Every smoke run used `--skip-claude-login`,
+so what is proven end to end is provisioning, config migration, and the full
+session lifecycle on a box where Claude is *not* signed in — `cbx new` there
+correctly starts a session and reports the missing login in under a second.
+
+Unverified: that a session on a signed-in box produces a Remote Control URL
+reachable from the phone. The mechanism is exercised locally against a
+signed-in Mac, where it produces a working URL in ~9 seconds, so the remaining
+risk is specific to a remote box rather than to the code path.
+
+Token auth for gh/vercel/supabase is likewise unexercised against real tokens —
+the recipes and their verify commands are unit-tested, but no live token was
+used.
