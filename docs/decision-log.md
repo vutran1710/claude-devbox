@@ -298,3 +298,23 @@ builtins never cause a drop, and the trailing boundary accepts a quote so
 `--repo "/Users/you"` is rewritten. Tested against the real file's shape rather
 than a simplified fixture, which is how the first version passed while being
 wrong.
+
+## A step's Check must test what the rest of the world sees
+
+Third instance of one mistake, and the most expensive: `Check` used the tool
+PATH (`$HOME/.local/bin` prepended), so it passed on the strength of a prefix
+that `ssh box <bin>` does not set. The step was skipped, and the binary stayed
+invisible to everything except cbx itself.
+
+`onDefaultPath` now exists alongside `has` for exactly this: any step claiming
+to put something on the PATH verifies it *without* the prefix.
+
+The same error appeared inside a step's own script. The claude installer's Do
+ended with `command -v claude`, which found the binary under the tool PATH and
+returned success even when the symlink onto `/usr/local/bin` had never been
+made. It now locates the binary, links it, and tests the link.
+
+**Process note:** two of my scripted edits to this file failed silently —
+`str.replace` with a stale anchor is a no-op, and I rebuilt and re-tested
+unchanged code twice before noticing. Edits now assert their anchor exists
+before writing.

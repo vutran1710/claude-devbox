@@ -27,9 +27,21 @@ const toolPath = `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.car
 // remote runs a script with the tool PATH already set.
 func remote(t Target, script string) (string, error) { return Run(t, toolPath+script) }
 
-// has reports whether a binary resolves on the box.
+// has reports whether a binary resolves on the box, with the tool PATH set.
 func has(t Target, bin string) bool {
 	_, err := remote(t, "command -v "+bin+" >/dev/null 2>&1")
+	return err == nil
+}
+
+// onDefaultPath reports whether a binary resolves *without* the tool PATH —
+// that is, to a plain `ssh box <bin>` and to anything else that does not know
+// to prepend $HOME/.local/bin.
+//
+// A step's Check must use this wherever the step claims to put something on
+// the PATH, or the Check passes on the strength of a prefix the rest of the
+// world does not set, and the step is skipped while the binary stays hidden.
+func onDefaultPath(t Target, bin string) bool {
+	_, err := Run(t, "command -v "+bin+" >/dev/null 2>&1")
 	return err == nil
 }
 
@@ -55,7 +67,7 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 		},
 		{
 			Name:  "node",
-			Check: func(t Target) bool { return has(t, "node") && has(t, "npm") },
+			Check: func(t Target) bool { return onDefaultPath(t, "node") && onDefaultPath(t, "npm") },
 			Do: func(t Target) error {
 				// The npm global prefix is /usr/local, not ~/.npm-global, so
 				// globally-installed CLIs land on the default PATH. A
@@ -70,7 +82,7 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 		},
 		{
 			Name:  "github cli",
-			Check: func(t Target) bool { return has(t, "gh") },
+			Check: func(t Target) bool { return onDefaultPath(t, "gh") },
 			Do: func(t Target) error {
 				_, err := remote(t, `curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg && `+
 					`echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && `+
@@ -80,12 +92,12 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 		},
 		{
 			Name:  "vercel cli",
-			Check: func(t Target) bool { return has(t, "vercel") },
+			Check: func(t Target) bool { return onDefaultPath(t, "vercel") },
 			Do:    func(t Target) error { _, err := remote(t, `npm install -g vercel`); return err },
 		},
 		{
 			Name:  "supabase cli",
-			Check: func(t Target) bool { return has(t, "supabase") },
+			Check: func(t Target) bool { return onDefaultPath(t, "supabase") },
 			Do: func(t Target) error {
 				// The install script drops a binary in the working directory
 				// rather than onto PATH, which is why an earlier version
@@ -96,10 +108,22 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 			},
 		},
 		{
-			Name:  "claude code",
-			Check: func(t Target) bool { return has(t, "claude") },
+			Name: "claude code",
+			// Checked on the default PATH, not the tool PATH: the installer
+			// puts claude under $HOME/.local/bin, and the step's job is to
+			// make it reachable without that prefix.
+			Check: func(t Target) bool { return onDefaultPath(t, "claude") },
 			Do: func(t Target) error {
-				_, err := remote(t, `curl -fsSL https://claude.ai/install.sh | bash`)
+				// Locate the binary rather than guessing where the installer
+				// put it, link it onto the default PATH, and verify the link
+				// itself. Ending with `command -v claude` would not do: that
+				// runs with the tool PATH set and reports success even when
+				// the symlink was never made.
+				_, err := remote(t, `curl -fsSL https://claude.ai/install.sh | bash || true
+src=$(command -v claude 2>/dev/null || true)
+if [ -z "$src" ]; then echo "claude is not on PATH after install" >&2; exit 1; fi
+ln -sf "$src" /usr/local/bin/claude
+test -x /usr/local/bin/claude`)
 				return err
 			},
 		},

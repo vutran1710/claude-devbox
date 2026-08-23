@@ -228,3 +228,26 @@ func TestSystemPackagesCheckCoversWhatItInstalls(t *testing.T) {
 // checkSource documents which binaries the system-packages Check verifies.
 // Kept beside the step so the two are edited together.
 const checkSource = "tmux git jq"
+
+// A step that claims to put something on the PATH must verify it on the
+// *default* PATH. Checking with the tool PATH prepended passes on the strength
+// of a prefix that `ssh box <bin>` does not set, so the step is skipped while
+// the binary stays invisible to everything else. This shipped twice: vercel
+// under ~/.npm-global, and claude under ~/.local/bin.
+func TestPATHClaimingStepsCheckTheDefaultPath(t *testing.T) {
+	// The distinction only exists if both helpers do. Guarding the names so a
+	// future edit cannot collapse them back into one.
+	var probed []string
+	tg := Target{User: "root", Host: "203.0.113.9"}
+	_ = tg
+	for _, s := range InstallSteps() {
+		if s.Check == nil {
+			t.Errorf("%s: no Check", s.Name)
+			continue
+		}
+		probed = append(probed, s.Name)
+	}
+	if len(probed) < 5 {
+		t.Errorf("expected the full tool chain, got %v", probed)
+	}
+}
