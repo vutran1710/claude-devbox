@@ -39,7 +39,7 @@ fi
 [ -n "$HOST" ] || fail "usage: smoke.sh <host> | --create"
 
 echo "--- building"
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/cbx-smoke-linux ./cmd/cbx-next
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/cbx-smoke-linux ./cmd/cbx
 go build -o /tmp/cbxst-smoke ./cmd/cbx-setuptool
 
 echo "--- provisioning $HOST"
