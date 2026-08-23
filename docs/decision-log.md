@@ -135,3 +135,25 @@ the Enter are separate send-keys.
 over JSON because the caller is an agent with a shell: `cut -f2` and
 `awk -F'\t'` work without a parser, and the format is readable when a person
 looks at it. JSON is easy to add later as a flag and hard to remove.
+
+## Shell-quoting is not argv-safety
+
+`git clone` was built as a shell string with both arguments `shellQuote`d. That
+is shell-safe and still wrong: quoting makes a value *one argv element*, and
+that element can still be an option. `git clone --upload-pack=<cmd>` executes
+`<cmd>`, so `cbx new x --repo '--upload-pack=touch /tmp/pwned'` was remote code
+execution with perfectly correct quoting.
+
+This is the third time the same distinction has bitten in this project — the
+first was a host beginning with `-` reaching `ssh` as `-oProxyCommand=`, the
+second a path reaching `scp`. Quoting defends the shell; it does nothing about
+the program's own option parser.
+
+The clone now goes through `exec.Command("git", "clone", "--", url, dir)` with
+no shell at all, plus a validator that rejects a leading dash and requires
+shorthand to look like `owner/repo`. Tests cover both the parser and the
+end-to-end case, including that a rejected clone leaves no directory behind.
+
+**Rule for the rest of this work:** if a value reaches a program that parses
+options, either pass it after `--` via `exec.Command`, or reject a leading
+dash. Quoting alone is not an answer.

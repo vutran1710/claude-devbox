@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -110,18 +112,41 @@ func (a *App) prepareDir(dir, repo string) error {
 	if repo == "" {
 		return nil
 	}
-	url := repo
-	if !strings.Contains(repo, "://") && !strings.HasPrefix(repo, "git@") {
-		url = "https://github.com/" + repo + ".git"
-	}
-	if out, err := tmux.Shell(fmt.Sprintf("git clone %s %s 2>&1", shellQuote(url), shellQuote(dir))); err != nil {
+	url, err := repoURL(repo)
+	if err != nil {
 		os.RemoveAll(dir)
-		return fmt.Errorf("clone %s: %w: %s", repo, err, strings.TrimSpace(out))
+		return err
+	}
+	// exec.Command, not a shell string. Shell-quoting makes a value safe for
+	// the shell but not for argv: git reads a leading dash as an option, and
+	// `git clone --upload-pack=...` runs an arbitrary command. "--" ends
+	// option parsing, and going through exec directly means there is no shell
+	// to quote for in the first place.
+	out, err := exec.Command("git", "clone", "--", url, dir).CombinedOutput()
+	if err != nil {
+		os.RemoveAll(dir)
+		return fmt.Errorf("clone %s: %w: %s", repo, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+// repoURL expands owner/repo shorthand and rejects anything git would read as
+// an option rather than a repository.
+func repoURL(repo string) (string, error) {
+	if strings.HasPrefix(repo, "-") {
+		return "", fmt.Errorf("invalid repo %q: leading dash would be read as a git option", repo)
+	}
+	if strings.Contains(repo, "://") || strings.HasPrefix(repo, "git@") {
+		return repo, nil
+	}
+	// Shorthand must look like owner/repo and nothing else.
+	if !shorthand.MatchString(repo) {
+		return "", fmt.Errorf("invalid repo %q: expected owner/repo or a full git URL", repo)
+	}
+	return "https://github.com/" + repo + ".git", nil
+}
+
+var shorthand = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
 
 // List prints every recorded session and whether it is running. Reconciling
 // the store against tmux is the point: a row can outlive its process.

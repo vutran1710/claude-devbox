@@ -222,3 +222,63 @@ func TestExportDBHasAHeaderAndTheSession(t *testing.T) {
 		t.Errorf("session absent from the export:\n%s", got)
 	}
 }
+
+// git reads a leading dash as an option, and --upload-pack=<cmd> executes it.
+// Shell-quoting does not help: it makes the value one argv element, and that
+// element is still an option. The clone therefore goes through exec.Command
+// with an explicit "--", and obviously-bad input is rejected before that.
+func TestRepoURLRejectsWhatGitWouldReadAsAnOption(t *testing.T) {
+	for _, bad := range []string{
+		"--upload-pack=touch /tmp/pwned",
+		"-u/tmp/x",
+		"--help",
+		"owner/repo; touch /tmp/pwned",
+		"owner repo",
+		"not-a-repo",
+		"a/b/c",
+		"",
+	} {
+		if got, err := repoURL(bad); err == nil {
+			t.Errorf("repoURL(%q) = %q, want an error", bad, got)
+		}
+	}
+}
+
+func TestRepoURLAcceptsShorthandAndFullURLs(t *testing.T) {
+	for in, want := range map[string]string{
+		"owner/repo":                        "https://github.com/owner/repo.git",
+		"my-org/my.repo_v2":                 "https://github.com/my-org/my.repo_v2.git",
+		"https://github.com/o/r.git":        "https://github.com/o/r.git",
+		"git@github.com:o/r.git":            "git@github.com:o/r.git",
+		"https://gitlab.com/group/proj.git": "https://gitlab.com/group/proj.git",
+	} {
+		got, err := repoURL(in)
+		if err != nil {
+			t.Errorf("repoURL(%q): %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("repoURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The end-to-end guard: a hostile repo value must not execute, and must not
+// leave a half-made directory behind.
+func TestNewWithAHostileRepoNeitherExecutesNorLittersr(t *testing.T) {
+	a, _, _ := app(t)
+	canary := filepath.Join(t.TempDir(), "pwned")
+	n := name(t)
+	t.Cleanup(func() { a.Tmux.Kill(n) })
+
+	err := a.New(n, "--upload-pack=touch "+canary)
+	if err == nil {
+		t.Fatal("New accepted a repo value git would read as an option")
+	}
+	if _, statErr := os.Stat(canary); statErr == nil {
+		t.Fatal("the payload executed")
+	}
+	if _, statErr := os.Stat(filepath.Join(a.Root, n)); statErr == nil {
+		t.Error("a project directory was left behind after the failure")
+	}
+}
