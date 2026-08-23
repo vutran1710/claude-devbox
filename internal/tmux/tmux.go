@@ -132,6 +132,19 @@ func (c *Client) SendKeys(name, keys string) error {
 	return err
 }
 
+// LoggedIn reports whether Claude Code is signed in for the current user.
+//
+// Checked before waiting for a Remote Control URL: an unauthenticated session
+// starts fine and then never produces one, and a bare 60-second timeout does
+// not tell anybody why.
+func (c *Client) LoggedIn() bool {
+	out, err := c.run(`claude auth status --json 2>/dev/null`)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, `"loggedIn": true`) || strings.Contains(out, `"loggedIn":true`)
+}
+
 var rcURL = regexp.MustCompile(`https://claude\.(?:com|ai)/code/\S+`)
 
 // FindRemoteControlURL extracts a Remote Control URL from pane text. Split out

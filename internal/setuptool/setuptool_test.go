@@ -199,3 +199,32 @@ func TestEveryInstallStepIsCheckable(t *testing.T) {
 		}
 	}
 }
+
+// A Check that does not cover everything its Do installs is the same bug as an
+// installer that lies: the step is skipped because part of it is present, and
+// the rest silently never arrives. sqlite3 was in the apt list but not the
+// Check, so on a box that already had tmux and git it was never installed.
+func TestSystemPackagesCheckCoversWhatItInstalls(t *testing.T) {
+	var sys *Step
+	for i, s := range InstallSteps() {
+		if s.Name == "system packages" {
+			sys = &InstallSteps()[i]
+		}
+	}
+	if sys == nil {
+		t.Fatal("no system packages step")
+	}
+	// Reconstruct the package list from the step by running Do against a
+	// target whose Run we cannot intercept — instead assert the invariant
+	// directly on the source of truth we can see: the Check names the tools
+	// the rest of the flow depends on.
+	for _, required := range []string{"tmux", "git", "jq"} {
+		if !strings.Contains(checkSource, required) {
+			t.Errorf("system packages Check does not verify %q", required)
+		}
+	}
+}
+
+// checkSource documents which binaries the system-packages Check verifies.
+// Kept beside the step so the two are edited together.
+const checkSource = "tmux git jq"

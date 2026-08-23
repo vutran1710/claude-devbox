@@ -219,3 +219,27 @@ appeared to succeed and left nothing behind.
 Uploading a darwin build to a linux box fails later with "cannot execute binary
 file", at a point far from the cause. Four bytes of magic turn that into an
 error that names the fix.
+
+## `cbx new` diagnoses a missing login instead of timing out
+
+On a box where Claude Code is not signed in, a session starts fine and then
+never produces a Remote Control URL. The first version waited the full 60
+seconds and reported "no URL appeared", which is true and useless.
+
+It now checks `claude auth status` first and says so in 0.9 seconds, naming
+`cbx-setuptool setup` as the fix. The session still starts and still exits 0 —
+it is usable over `tmux attach`, and failing the command would leave an agent
+unsure whether to retry.
+
+Found by running `cbx new` on a freshly provisioned box before signing in,
+which is exactly the state a real first-run is in.
+
+## Dropped `sqlite3` from the installed packages
+
+It was in the apt list but not in the step's `Check`, so on a box that already
+had tmux and git the step skipped and sqlite3 never arrived. Same shape as the
+installer that lies: a Check that does not cover what its Do claims.
+
+Removed rather than added to the Check, because nothing needs it —
+`modernc.org/sqlite` is pure Go, and `cbx export db` exists precisely so a
+person never has to open the database by hand.

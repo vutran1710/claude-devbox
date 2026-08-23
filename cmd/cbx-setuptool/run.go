@@ -29,7 +29,7 @@ func step(status, name, detail string) {
 	fmt.Printf("  %s %s\n", status, name)
 }
 
-func runSetup(t setuptool.Target, binary string, skipAuth bool) error {
+func runSetup(t setuptool.Target, binary string, skipAuth, skipClaude bool) error {
 	fmt.Printf("\nProvisioning %s\n\n", t)
 
 	fmt.Println("Tools")
@@ -57,7 +57,9 @@ func runSetup(t setuptool.Target, binary string, skipAuth bool) error {
 	}
 
 	fmt.Println("\nClaude Code")
-	if setuptool.ClaudeLoggedIn(t) {
+	if skipClaude {
+		step(skip, "login", "skipped — run setup again to sign in")
+	} else if setuptool.ClaudeLoggedIn(t) {
 		step(skip, "login", "already signed in")
 	} else {
 		fmt.Println("\n  Claude Code will open on the box. Type /login, complete sign-in in")

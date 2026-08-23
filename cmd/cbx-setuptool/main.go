@@ -54,7 +54,7 @@ func target(host, user string) (setuptool.Target, error) {
 
 func setupCmd() *cobra.Command {
 	var host, user, binary string
-	var skipAuth bool
+	var skipAuth, skipClaude bool
 
 	cmd := &cobra.Command{
 		Use:   "setup",
@@ -80,13 +80,14 @@ token path. Everything else can be answered from environment variables.`,
 			if err != nil {
 				return err
 			}
-			return runSetup(t, binary, skipAuth)
+			return runSetup(t, binary, skipAuth, skipClaude)
 		},
 	}
 	cmd.Flags().StringVar(&host, "host", "", "IP or hostname of the box (required)")
 	cmd.Flags().StringVar(&user, "user", "root", "SSH user")
 	cmd.Flags().StringVar(&binary, "binary", "", "Locally built linux cbx to install (GOOS=linux GOARCH=amd64)")
 	cmd.Flags().BoolVar(&skipAuth, "skip-auth", false, "Skip the CLI token prompts")
+	cmd.Flags().BoolVar(&skipClaude, "skip-claude-login", false, "Install everything but leave Claude Code signed out (sign in later with another setup run)")
 	return cmd
 }
 

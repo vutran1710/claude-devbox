@@ -51,7 +51,7 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 		{
 			Name:  "system packages",
 			Check: func(t Target) bool { return has(t, "tmux") && has(t, "git") && has(t, "jq") },
-			Do:    apt("curl wget git unzip jq build-essential ca-certificates gnupg tmux sqlite3"),
+			Do:    apt("curl wget git unzip jq build-essential ca-certificates gnupg tmux"),
 		},
 		{
 			Name:  "node",
