@@ -4,157 +4,91 @@
 
 # ClaudeBox
 
-Your personal Claude Code agent, always on, accessible from anywhere.
+Your own Claude Code agent, always on, reachable from your phone.
 
-Deploy Claude Code to a cloud server and access it from your phone, tablet, or any device via the official Claude app. No static workstation needed — your dev environment lives in the cloud, ready when you are.
+A box in the cloud runs Claude Code sessions you can open from the Claude app —
+no laptop required, nothing to keep awake.
 
-## Why
+## Two commands
 
-- Work from anywhere — phone, iPad, coffee shop laptop
-- Claude Code runs 24/7 with full autonomy, pre-authenticated
-- Session management via HTTP API — create, list, kill sessions remotely
-- Browser automation and end-to-end testing with agent-browser and Playwright
+ClaudeBox is two binaries because it does two unrelated jobs.
 
-## Quick Start
+**`cbx-setuptool`** runs on your laptop and prepares a machine. Interactive: it
+shows progress, asks for tokens, and hands you the Claude sign-in.
 
-```bash
-# 1. Deploy via GitHub Actions (DigitalOcean or Railway)
+**`cbx`** runs on the box and manages sessions. Non-interactive: it never
+prompts, never reads stdin, and prints one tab-separated fact per line, because
+its caller is the Claude session itself.
 
-# 2. Setup — install tools, authenticate, start services
-ssh -t root@<host> 'cbx setup'
+See [docs/two-binaries.md](docs/two-binaries.md) for why.
 
-# 3. Save the printed skill to ~/.claude/skills/claudebox/SKILL.md
-#    or paste it into a Claude Project at claude.ai/projects
+## Getting started
 
-# 4. Open the printed master session URL on your phone and start working
-```
-
-Setup prints a ready-to-use skill file with your server's URLs and API keys baked in. Save it and Claude knows how to manage your server.
-
-It also starts an always-on `master` session with Remote Control enabled and prints its `claude.ai/code` URL — open that on any device to talk to your server directly.
-
-## Commands
+Create an Ubuntu machine with your SSH key on it — a DigitalOcean droplet, or
+anything you can `ssh root@` into. Then, from your laptop:
 
 ```bash
-# Setup (as root, one-time)
-cbx setup                                  # install tools, authenticate, start services
+GOOS=linux GOARCH=amd64 go build -o cbx-linux ./cmd/cbx
+go build -o cbx-setuptool ./cmd/cbx-setuptool
 
-# Sessions
-cbx code hello-world                       # find or create /workspace/hello-world
-cbx code my-app --repo owner/repo          # clone GitHub repo
-cbx code my-app --repo https://...         # clone any git URL
-cbx code my-app --headless                 # non-interactive mode
-
-# API daemon
-cbx serve                                  # start API server (foreground)
-cbx serve -d                               # start as daemon
-cbx serve --stop                           # stop daemon
-
-# Utilities
-cbx status                                 # show all services + sessions
-cbx show api-key                           # show API key for cbx serve
+./cbx-setuptool setup --host <ip> --binary ./cbx-linux
 ```
 
-## Session Management API
+That installs the tool chain, puts `cbx` on the box, signs Claude Code in,
+authenticates `gh`/`vercel`/`supabase` from tokens, and copies your skills and
+settings across. Each step is skipped if already done, so re-running after a
+failure is cheap.
 
-When `cbx serve` is running (port 8091, Cloudflare tunneled):
-
-```
-POST   /sessions     { name, repo? }    Create session
-GET    /sessions                         List active sessions
-DELETE /sessions/{name}                  Kill a session
-GET    /health                           Health check
-```
-
-- `name` is required — maps to `/workspace/{name}`
-- `repo` is optional — GitHub shorthand (`owner/repo`) or full git URL
-- If session already exists, returns `"already running"`
-- If no repo, finds existing dir or creates new with `git init`
-
-Auth: `X-API-Key` header. See [docs/cbx-serve-api.md](docs/cbx-serve-api.md).
-
-## Deploy
-
-### GitHub Actions (recommended)
-
-1. Fork/push this repo to GitHub
-2. Add secrets (Settings > Secrets > Actions):
-
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `DIGITALOCEAN_ACCESS_TOKEN` | For DigitalOcean | DigitalOcean API token |
-| `RAILWAY_TOKEN` | For Railway | Railway API token |
-| `SSH_PUBLIC_KEY` | Yes | Your SSH public key |
-| `GH_TOKEN` | No | GitHub PAT for `gh` CLI auth |
-
-3. Go to **Actions** > **Deploy to DigitalOcean** > **Run workflow**
-4. Choose region and size, click **Run** (defaults to Singapore)
-
-### Docker (local)
+Then start the always-on session and open its URL on your phone:
 
 ```bash
-docker build -t claudebox .
-docker run -d -p 2222:22 -p 6080:6080 \
-  -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
-  claudebox
+ssh root@<ip> cbx new master
 ```
 
-## Setup Flow
+## `cbx` — on the box
 
 ```
-cbx setup
-  ├── Wait for cloud-init
-  ├── Install 15+ tools
-  ├── Create claude user + gh auth
-  ├── OAuth authenticate Claude Code
-  ├── Start VNC + Chrome
-  ├── Start cbx serve + Cloudflare tunnel
-  ├── Start the master session (Remote Control enabled)
-  └── Print skill file with URLs, API keys, and the master session URL
+cbx new <name> [--repo owner/repo]   start a session, print its Remote Control URL
+cbx ls                                every session, and whether it is running
+cbx resume <name>                     a running session's URL and attach command
+cbx kill <name>                       stop it and forget it
+cbx export skills|rules|db            what this box has, to stdout
 ```
 
-## Architecture
+Sessions are recorded in SQLite, so a session that dies is reported `stopped`
+rather than vanishing, and a Remote Control URL survives a tmux restart.
+
+## `cbx-setuptool` — on your laptop
 
 ```
-Phone/Tablet/Laptop
-  |
-  +-- Claude App --> Claude Code sessions (tmux)
-  +-- HTTP API  --> cbx serve (port 8091) --> session management
-  +-- SSH       --> direct access
-        |
-ClaudeBox (cloud server)
-  +-- cbx serve (API daemon, Cloudflare tunneled)
-  +-- VNC desktop (Chrome, Cloudflare tunneled)
+cbx-setuptool setup   --host <ip> --binary <linux-cbx>   the whole flow
+cbx-setuptool auth    --host <ip> [github|vercel|supabase]
+cbx-setuptool migrate --host <ip>    push ~/.claude skills, agents, settings
+cbx-setuptool status  --host <ip>    what is installed and authenticated
 ```
 
-See [docs/architecture.md](docs/architecture.md).
+Tokens are piped over SSH into each tool's own login rather than passed as
+arguments, where they would be visible in the box's process table. A token
+already in your environment (`GH_TOKEN`, `VERCEL_TOKEN`,
+`SUPABASE_ACCESS_TOKEN`) is used without asking.
 
-## Code Structure
+`settings.json` is rewritten on the way: paths under your home directory are
+remapped, and hooks calling binaries the box does not have are dropped and
+reported. Copied verbatim they would fail on every edit inside every session.
 
-```
-cmd/cbx/            Cobra CLI
-internal/
-  auth/             OAuth + API key management
-  provision/        Tool installation + user creation
-  workspace/        Smart project resolution (find/clone/create)
-  session/          Manager interface + TmuxManager
-  master/           The always-on master session (shared by setup + activate)
-  service/          Service interface (VNC)
-  serve/            HTTP API server with auth
-  setup/            TUI setup flow + skill template
-  shell/            Shell execution utilities
-  code/             Session creation TUI
-  status/           Status display
-  ui/               TUI components
-tests/              Integration tests + E2E script
+## Testing
+
+```bash
+go test ./...              # unit and integration, drives real tmux and SQLite
+scripts/smoke.sh --create  # provision a real droplet, drive it, destroy it
 ```
 
-68 tests across 12 packages. See [docs/cbx-structure.md](docs/cbx-structure.md).
+`cbx` has no remote dependency, so it is fully testable on a laptop. The smoke
+test exists because fakes cannot model a shell, a PATH, an installer that exits
+0 having done nothing, or Claude asking to trust a folder — every serious bug in
+this project was found by running against a real box.
 
-## Ports
+## Docs
 
-| Port | Service | Access |
-|------|---------|--------|
-| 22   | SSH | Direct (key auth) |
-| 6080 | noVNC | Cloudflare tunnel |
-| 8091 | cbx serve | Cloudflare tunnel |
+- [docs/two-binaries.md](docs/two-binaries.md) — why the split
+- [docs/decision-log.md](docs/decision-log.md) — choices made, why, and what would make each wrong
