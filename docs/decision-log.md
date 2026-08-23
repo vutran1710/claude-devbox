@@ -157,3 +157,164 @@ end-to-end case, including that a rejected clone leaves no directory behind.
 **Rule for the rest of this work:** if a value reaches a program that parses
 options, either pass it after `--` via `exec.Command`, or reject a leading
 dash. Quoting alone is not an answer.
+
+## Tool tokens arrive on stdin, never in argv
+
+`gh`, `vercel` and `supabase` are authenticated by piping a token over SSH into
+the tool's login. A token passed as a command-line argument is visible in the
+box's process table to every other user for as long as the command runs, and
+lands in shell history.
+
+The three tools disagree about how to accept one, which is exactly why the
+recipes live in one table rather than scattered through provisioning:
+
+- `gh auth login --with-token` reads stdin. Straightforward.
+- `supabase login --token "$(cat)"` — the substitution happens in the remote
+  shell, so the token is still never in cbx's argv.
+- `vercel` has no stdin login at all; it reads `VERCEL_TOKEN` or `--token`.
+  Its config file is written directly instead, with `umask 077` so it is
+  private from creation rather than chmod-ed after a brief world-readable
+  window. `printf` is a shell builtin, so even there the token never becomes
+  the argv of a forked process.
+
+Every recipe is followed by a verify command. Without one a bad or expired
+token looks exactly like success, and the failure surfaces later inside a
+session with no obvious cause.
+
+Claude Code is deliberately absent from this list: subscription login is an
+interactive browser OAuth with no token path. A test asserts it never appears
+there, so nobody later "adds it for consistency".
+
+Tokens are also read from the local environment (`GH_TOKEN`, `VERCEL_TOKEN`,
+`SUPABASE_ACCESS_TOKEN`) so someone who already has them exported is not asked
+to paste anything.
+
+## setuptool prints progress rather than rendering a full-screen TUI
+
+The brief said interactive, and it is — it prompts, pastes, and shows progress.
+But it is not a Bubble Tea program that owns the screen, because the login step
+hands the terminal to a nested Claude Code. A full-screen program has to be
+suspended and restored around that, which is a lot of machinery for a flow a
+person watches once per box. Line-by-line progress with `✓ · ✗` gives the same
+information and composes with the interactive step instead of fighting it.
+
+**Wrong if** setup grows steps that run concurrently or need live updating, at
+which point a real TUI starts earning its complexity.
+
+## Every install step is re-checked after it runs
+
+`Step.Run` runs `Check` again after `Do`, whatever `Do`'s exit code was. A
+`curl | bash` that exits 0 having installed nothing printed "✓ Supabase CLI" on
+a real droplet where the binary existed nowhere on the filesystem.
+
+The reverse is also handled: a `Do` that errors but whose `Check` then passes
+is a success, because installers routinely exit non-zero on a harmless warning.
+
+The supabase step was rewritten as a result — its official install script drops
+a binary in the working directory rather than onto PATH, which is why it
+appeared to succeed and left nothing behind.
+
+## `InstallCBX` checks the ELF magic before uploading
+
+Uploading a darwin build to a linux box fails later with "cannot execute binary
+file", at a point far from the cause. Four bytes of magic turn that into an
+error that names the fix.
+
+## `cbx new` diagnoses a missing login instead of timing out
+
+On a box where Claude Code is not signed in, a session starts fine and then
+never produces a Remote Control URL. The first version waited the full 60
+seconds and reported "no URL appeared", which is true and useless.
+
+It now checks `claude auth status` first and says so in 0.9 seconds, naming
+`cbx-setuptool setup` as the fix. The session still starts and still exits 0 —
+it is usable over `tmux attach`, and failing the command would leave an agent
+unsure whether to retry.
+
+Found by running `cbx new` on a freshly provisioned box before signing in,
+which is exactly the state a real first-run is in.
+
+## Dropped `sqlite3` from the installed packages
+
+It was in the apt list but not in the step's `Check`, so on a box that already
+had tmux and git the step skipped and sqlite3 never arrived. Same shape as the
+installer that lies: a Check that does not cover what its Do claims.
+
+Removed rather than added to the Check, because nothing needs it —
+`modernc.org/sqlite` is pure Go, and `cbx export db` exists precisely so a
+person never has to open the database by hand.
+
+## Claude Code refuses `--dangerously-skip-permissions` as root, and that explains the `claude` user
+
+The smoke test found this, and it overturns an assumption:
+
+    --dangerously-skip-permissions cannot be used with root/sudo privileges
+    for security reasons
+
+The session exits immediately, its tmux window closes, and `cbx new` appears to
+succeed while leaving nothing behind. `cbx ls` then reports `stopped` a second
+later.
+
+So the original `claude` user was not a security preference — it was a
+workaround for a constraint Claude Code imposes. Nine bug-fix commits went into
+bridging root-installed tools to that account, and every one of them was the
+cost of this single check.
+
+**`IS_SANDBOX=1` is the sanctioned escape.** With it, a root session starts and
+stays up. That is a true statement here: a ClaudeBox droplet is single-tenant
+and exists only to run these sessions. Setting it means "no identity switching"
+survives as a design rule rather than being quietly reversed.
+
+Verified on a droplet: without it the session dies within two seconds, with it
+`cbx ls` reports it running.
+
+**Wrong if** ClaudeBox ever runs sessions for anyone but the box's owner, or on
+a machine doing anything else — at which point the sandbox claim stops being
+true and a separate user becomes honest rather than ceremonial.
+
+## Three PATH findings from the smoke test
+
+All three were invisible locally and to `cbx-setuptool status`, because that
+command prepends the tool PATH itself before checking.
+
+1. **npm's global prefix was `$HOME/.npm-global`**, so `vercel` was invisible to
+   `ssh box vercel ...`. Now `/usr/local`, which is on the default PATH — the
+   right answer for a root-owned single-purpose box.
+2. **`claude` installs to `~/.local/bin`** and is now symlinked into
+   `/usr/local/bin`, so nothing has to know where the installer put it.
+3. **`sqlite3` was listed for install but not covered by its step's `Check`**,
+   so on a box that already had tmux and git the step skipped and it never
+   arrived. Dropped rather than fixed: nothing needs it.
+
+## The portability pass was lost in the rewrite and had to be re-ported
+
+`MigrateConfig` initially uploaded `settings.json` verbatim, reintroducing a bug
+an earlier droplet had already found: hooks referencing `/Users/...` and
+binaries the box lacks, firing on every edit inside every session.
+
+Re-ported with the lessons intact — compound commands are split into segments
+so `cat >/dev/null || true; ... && code-review-graph ...` is understood,
+builtins never cause a drop, and the trailing boundary accepts a quote so
+`--repo "/Users/you"` is rewritten. Tested against the real file's shape rather
+than a simplified fixture, which is how the first version passed while being
+wrong.
+
+## A step's Check must test what the rest of the world sees
+
+Third instance of one mistake, and the most expensive: `Check` used the tool
+PATH (`$HOME/.local/bin` prepended), so it passed on the strength of a prefix
+that `ssh box <bin>` does not set. The step was skipped, and the binary stayed
+invisible to everything except cbx itself.
+
+`onDefaultPath` now exists alongside `has` for exactly this: any step claiming
+to put something on the PATH verifies it *without* the prefix.
+
+The same error appeared inside a step's own script. The claude installer's Do
+ended with `command -v claude`, which found the binary under the tool PATH and
+returned success even when the symlink onto `/usr/local/bin` had never been
+made. It now locates the binary, links it, and tests the link.
+
+**Process note:** two of my scripted edits to this file failed silently —
+`str.replace` with a stale anchor is a no-op, and I rebuilt and re-tested
+unchanged code twice before noticing. Edits now assert their anchor exists
+before writing.

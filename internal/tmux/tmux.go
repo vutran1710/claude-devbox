@@ -19,6 +19,20 @@ import (
 // expanded by the shell, so this holds for whoever is running.
 const toolPath = `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.cargo/bin:/usr/local/go/bin:$PATH"; `
 
+// sandboxEnv is required for a session running as root.
+//
+// Claude Code refuses --dangerously-skip-permissions when it detects root or
+// sudo: "cannot be used with root/sudo privileges for security reasons". The
+// session then exits immediately and its tmux window closes, so cbx new
+// appears to work and leaves nothing behind.
+//
+// IS_SANDBOX=1 is the sanctioned way to say the environment is already
+// isolated. It is true here: a ClaudeBox droplet is a single-tenant machine
+// whose entire purpose is running these sessions, and the alternative — a
+// dedicated non-root user — cost nine bug-fix commits in this project's
+// history bridging root-installed tools to it.
+const sandboxEnv = `export IS_SANDBOX=1; `
+
 // Runner executes a shell script and returns its combined output. Injected so
 // tests can observe commands without a tmux server, though most of this
 // package's tests drive the real one.
@@ -26,7 +40,7 @@ type Runner func(script string) (string, error)
 
 // Shell runs a script through bash.
 func Shell(script string) (string, error) {
-	out, err := exec.Command("bash", "-c", toolPath+script).CombinedOutput()
+	out, err := exec.Command("bash", "-c", toolPath+sandboxEnv+script).CombinedOutput()
 	return string(out), err
 }
 
@@ -130,6 +144,19 @@ func (c *Client) Capture(name string, lines int) (string, error) {
 func (c *Client) SendKeys(name, keys string) error {
 	_, err := c.run(fmt.Sprintf("tmux send-keys -t %s %s", quote(name), keys))
 	return err
+}
+
+// LoggedIn reports whether Claude Code is signed in for the current user.
+//
+// Checked before waiting for a Remote Control URL: an unauthenticated session
+// starts fine and then never produces one, and a bare 60-second timeout does
+// not tell anybody why.
+func (c *Client) LoggedIn() bool {
+	out, err := c.run(`claude auth status --json 2>/dev/null`)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, `"loggedIn": true`) || strings.Contains(out, `"loggedIn":true`)
 }
 
 var rcURL = regexp.MustCompile(`https://claude\.(?:com|ai)/code/\S+`)

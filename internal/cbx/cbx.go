@@ -76,9 +76,17 @@ func (a *App) New(name, repo string) error {
 		return err
 	}
 
-	// A session with no Remote Control URL is still a usable session, so a
-	// failure here is reported but does not undo the start.
-	url, urlErr := a.Tmux.EnableRemoteControl(name, a.Timeout)
+	// A session with no Remote Control URL is still usable over tmux, so
+	// neither of these undoes the start — but say which of the two happened.
+	// An unauthenticated box never produces a URL, and waiting the full
+	// timeout to report a bare "none appeared" tells nobody why.
+	var url string
+	var urlErr error
+	if !a.Tmux.LoggedIn() {
+		urlErr = fmt.Errorf("Claude Code is not signed in on this machine, so the session has no Remote Control URL — sign in with `cbx-setuptool setup`")
+	} else {
+		url, urlErr = a.Tmux.EnableRemoteControl(name, a.Timeout)
+	}
 
 	if err := a.Store.Put(store.Session{Name: name, Dir: dir, Repo: repo, RCURL: url}); err != nil {
 		return err
