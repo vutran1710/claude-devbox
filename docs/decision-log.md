@@ -62,3 +62,23 @@ the point it is taken.
 
 **Wrong if** ClaudeBox ever hosts sessions for someone other than the box's
 owner, at which point the blast radius stops being self-inflicted.
+
+## Integration and smoke tests are required, not optional
+
+Standing instruction: every part of this must be validated by integration tests
+locally and a smoke test against a real droplet before it counts as done. The
+last large refactor passed 181 unit tests and a mutation-tested review, then
+forty minutes on a real box found six defects — three blocking — because every
+test used a fake and fakes cannot model a shell, a PATH, or an installer that
+exits 0 having done nothing.
+
+Droplets may be created freely for this. **Every droplet except `claudebox`
+must be destroyed when the work is finished.**
+
+## Commit hygiene: stage explicit paths
+
+`git add -A` twice swept a subagent's or my own in-flight work into an
+unrelated commit — once putting 209 lines of Go inside a commit labelled
+`docs:`. Both were caught and rewritten before pushing. The rule now is
+`git commit --only <paths>`, which commits the named paths regardless of what
+else is staged.
