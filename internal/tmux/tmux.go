@@ -140,17 +140,35 @@ func FindRemoteControlURL(pane string) string {
 	return rcURL.FindString(pane)
 }
 
+// startupPrompts are the questions Claude Code asks before it reaches its
+// input line. Each is answered by pressing Enter to take the highlighted
+// default, which is the affirmative in every case.
+//
+// The trust prompt is not an edge case: cbx new creates the project directory,
+// so Claude has never seen it before and asks every single time. Typing
+// /remote-control into that prompt does nothing, which is how a session ends
+// up running with no URL.
+var startupPrompts = []string{
+	"Is this a project you created or one you trust",
+	"Choose the text style",
+	"Security notes",
+	"Enable Remote Control",
+}
+
 // EnableRemoteControl runs /remote-control in a session and returns the URL it
-// prints. Claude may ask to confirm first, and the URL does not appear
-// immediately, so this polls rather than reading the pane once.
+// prints.
+//
+// It answers startup prompts as it sees them rather than assuming the session
+// is at its input line, and polls for the URL rather than reading the pane
+// once — the URL takes a few seconds to arrive.
 func (c *Client) EnableRemoteControl(name string, timeout time.Duration) (string, error) {
-	if err := c.SendKeys(name, "'/remote-control' Enter"); err != nil {
-		return "", err
-	}
 	deadline := time.Now().Add(timeout)
-	confirmed := false
+	answered := map[string]bool{}
+	var lastAsk time.Time
+
 	for time.Now().Before(deadline) {
 		time.Sleep(2 * time.Second)
+
 		pane, err := c.Capture(name, 60)
 		if err != nil {
 			continue
@@ -158,10 +176,55 @@ func (c *Client) EnableRemoteControl(name string, timeout time.Duration) (string
 		if url := FindRemoteControlURL(pane); url != "" {
 			return url, nil
 		}
-		if !confirmed && strings.Contains(pane, "Enable Remote Control") {
-			c.SendKeys(name, "Enter")
-			confirmed = true
+
+		// Clear whatever question is on screen before typing anything else.
+		if cleared := c.answerPrompt(name, pane, answered); cleared {
+			continue
 		}
+
+		// Only ask once Claude is actually at its input line. Sending into a
+		// session that is still booting silently does nothing, and asking once
+		// and assuming it landed is how a session ends up with no URL.
+		if !isReady(pane) {
+			continue
+		}
+		if time.Since(lastAsk) < 15*time.Second {
+			continue
+		}
+
+		// Text and Enter go separately with a pause. Sent together, Claude
+		// receives the Enter before it has registered /remote-control as a
+		// slash command and treats it as a prompt — it answers by searching
+		// the filesystem for a command definition, and no URL appears.
+		if err := c.SendKeys(name, quote("/remote-control")); err != nil {
+			return "", err
+		}
+		time.Sleep(2 * time.Second)
+		if err := c.SendKeys(name, "Enter"); err != nil {
+			return "", err
+		}
+		lastAsk = time.Now()
 	}
 	return "", fmt.Errorf("no Remote Control URL appeared in %q within %s", name, timeout)
+}
+
+// answerPrompt presses Enter on the first unanswered startup question it finds,
+// reporting whether it did.
+func (c *Client) answerPrompt(name, pane string, answered map[string]bool) bool {
+	for _, p := range startupPrompts {
+		if !answered[p] && strings.Contains(pane, p) {
+			c.SendKeys(name, "Enter")
+			answered[p] = true
+			return true
+		}
+	}
+	return false
+}
+
+// isReady reports whether Claude has finished starting and is showing its
+// input line. The prompt marker and the mode line both appear only once it is
+// accepting input.
+func isReady(pane string) bool {
+	return strings.Contains(pane, "❯") || strings.Contains(pane, "bypass permissions on") ||
+		strings.Contains(pane, "for shortcuts")
 }
