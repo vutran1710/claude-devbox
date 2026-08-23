@@ -43,13 +43,19 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           TAG: ${{ github.ref_name }}
         run: |
-          go build -ldflags "-X main.version=${TAG#v}" -o "cbx-${GOOS}-${GOARCH}" ./cmd/cbx/
+          # CGO_ENABLED=0 matters: the session store uses a pure-Go SQLite
+          # driver, and cgo would make these binaries non-portable and break
+          # cross-compilation.
+          CGO_ENABLED=0 go build -ldflags "-X main.version=${TAG#v}" -o "cbx-${GOOS}-${GOARCH}" ./cmd/cbx/
+          CGO_ENABLED=0 go build -ldflags "-X main.version=${TAG#v}" -o "cbx-setuptool-${GOOS}-${GOARCH}" ./cmd/cbx-setuptool/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cbx-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: cbx-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            cbx-${{ matrix.goos }}-${{ matrix.goarch }}
+            cbx-setuptool-${{ matrix.goos }}-${{ matrix.goarch }}
 
   publish:
     needs: build
