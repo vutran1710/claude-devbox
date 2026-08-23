@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vutran1710/claudebox/internal/activate"
 	"github.com/vutran1710/claudebox/internal/code"
+	"github.com/vutran1710/claudebox/internal/remote"
 	"github.com/vutran1710/claudebox/internal/serve"
 	"github.com/vutran1710/claudebox/internal/setup"
 	"github.com/vutran1710/claudebox/internal/status"
@@ -34,17 +36,57 @@ func main() {
 }
 
 func setupCmd() *cobra.Command {
-	return &cobra.Command{
+	var ip, user string
+	var assumeYes bool
+
+	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Install tools, authenticate Claude, start VNC",
 		Long: `Installs all dev tools, authenticates Claude Code via OAuth,
-and starts VNC + Chrome. Run as root.
+and starts VNC + Chrome.
 
-  ssh -t root@<host> 'cbx setup'`,
+With --ip, cbx runs the same setup on that machine over SSH instead of this
+one, passing your terminal through so the Claude login works as if you were
+sitting at the box. cbx must already be installed there — a droplet deployed
+by ClaudeBox has it from cloud-init.
+
+  cbx setup                        # this machine (run as root)
+  cbx setup --ip 203.0.113.9       # a remote box, as root
+  cbx setup --ip 203.0.113.9 -y    # skip the confirmation prompt
+
+Note --ip is not unattended: the Claude subscription login is an interactive
+browser OAuth, so it still waits for you. -y only skips cbx's own prompt.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return setup.Run()
+			if ip == "" {
+				return setup.Run()
+			}
+			target, err := remote.NewTarget(ip, user)
+			if err != nil {
+				return err
+			}
+			if !assumeYes && !confirm(fmt.Sprintf("Run cbx setup on %s?", target)) {
+				return fmt.Errorf("cancelled")
+			}
+			return remote.Run(target, "cbx setup")
 		},
 	}
+
+	cmd.Flags().StringVar(&ip, "ip", "", "Run setup on this host over SSH instead of locally")
+	cmd.Flags().StringVar(&user, "user", "root", "SSH user for --ip")
+	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "Skip the confirmation prompt")
+	return cmd
+}
+
+// confirm asks for a y/N on stdin. A non-tty stdin (a pipe, a CI job) reads as
+// no rather than hanging or silently proceeding.
+func confirm(prompt string) bool {
+	fmt.Printf("%s [y/N] ", prompt)
+	var answer string
+	if _, err := fmt.Scanln(&answer); err != nil {
+		return false
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes"
 }
 
 func activateCmd() *cobra.Command {
