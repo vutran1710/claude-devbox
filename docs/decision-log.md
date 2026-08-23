@@ -353,3 +353,37 @@ used.
 
 Test droplets may be created freely. `claudebox` (178.128.118.33) is the
 owner's live box and is never to be modified or destroyed.
+
+## Smoke-test gaps closed
+
+The first version covered install and the basic lifecycle. Five things it never
+touched, now added and passing from a clean droplet:
+
+- **`cbx new --repo`** — the clone path was entirely untested against a real
+  box. It works, and it correctly refuses to clone into a non-empty directory.
+- **A hostile `--repo`** — `--upload-pack=touch /tmp/pwned` is refused, runs no
+  payload, and leaves no directory behind. Previously only unit-tested.
+- **`cbx export skills` and `rules`** — only `db` was covered.
+- **Twelve concurrent `cbx new`, from separate processes.** All twelve
+  recorded, no lost writes. This is the reason the store is SQLite rather than
+  a JSON file, and it had only ever been proven with goroutines inside one
+  process, which is a much weaker claim.
+- **A bad token is caught, not reported as success.** Tested with a deliberately
+  invalid `GH_TOKEN`: the login fails with GitHub's own 401, the tool reports
+  it, and `status` still shows the box unauthenticated. No real credential was
+  put on a test box to prove this.
+
+Two of the failures during this work were my assertions rather than the code:
+counting all sessions instead of the concurrent ones, and forgetting that
+`cbx kill` deliberately does not delete a project directory.
+
+## Still unverified, and why
+
+A session on a **signed-in** box producing a Remote Control URL. Every smoke
+run uses `--skip-claude-login`, because subscription sign-in is a browser OAuth
+that needs a person. The mechanism is exercised locally against a signed-in Mac
+where it produces a working URL in about nine seconds, so what remains untested
+is that specific path on a remote box, not the code.
+
+Real tokens for gh/vercel/supabase. The plumbing and the rejection path are
+proven; a successful login with a valid token is not.
