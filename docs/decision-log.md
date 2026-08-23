@@ -103,3 +103,35 @@ until something far away breaks.
 is wrong for any non-root user. `internal/tmux` takes the other approach —
 prepending `$HOME/.local/bin` inside the script so the shell expands it. The
 `FullPATH` constant should follow when the setup tool moves.
+
+## Three Remote-Control bugs, all found by running the binary
+
+None of these were caught by tests. Each produced a session that started fine
+and then sat for a 60-second timeout with no URL. Found by running `cbx new` on
+a Mac and reading the tmux pane.
+
+1. **Claude asks to trust the folder.** `cbx new` creates the project
+   directory, so Claude has never seen it and asks every single time.
+   `/remote-control` typed into that prompt does nothing.
+2. **Text and Enter cannot go in one `send-keys`.** Claude receives the Enter
+   before it has registered `/remote-control` as a slash command, treats the
+   whole thing as a prompt, and helpfully searches the filesystem for a command
+   definition. They now go separately with a pause.
+3. **Asking once is not enough.** The first version captured the pane
+   immediately, saw a session still booting, found no prompt to answer, fired
+   the command into nothing, and marked itself done. It now waits for Claude's
+   input line to appear and re-asks every 15 seconds.
+
+Bug 3 was briefly hidden by my own debug harness, which slept before its first
+capture and so never reproduced the race. Worth remembering: an instrument that
+does not match the code path can exonerate a bug.
+
+All three now have regression tests, including one asserting the command and
+the Enter are separate send-keys.
+
+## `cbx` output format: tab-separated, one fact per line
+
+`name\tvalue` for single results, `name\tstatus\tdir\turl` for lists. Chosen
+over JSON because the caller is an agent with a shell: `cut -f2` and
+`awk -F'\t'` work without a parser, and the format is readable when a person
+looks at it. JSON is easy to add later as a flag and hard to remove.

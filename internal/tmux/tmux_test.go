@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // These tests drive the real tmux on this machine. cbx has no remote
@@ -143,5 +144,79 @@ func TestFindRemoteControlURL(t *testing.T) {
 		if got := FindRemoteControlURL(tc.pane); got != tc.want {
 			t.Errorf("FindRemoteControlURL(%q) = %q, want %q", tc.pane, got, tc.want)
 		}
+	}
+}
+
+// The three bugs below were each found by running the real binary, not by a
+// test. Each cost a full 60-second timeout and produced a session with no URL.
+
+func TestStartupPromptsIncludeTheTrustQuestion(t *testing.T) {
+	// cbx creates the project directory, so Claude has never seen it and asks
+	// this every single time. Missing it means /remote-control is typed into a
+	// prompt that is not listening.
+	found := false
+	for _, p := range startupPrompts {
+		if strings.Contains(p, "trust") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("startupPrompts does not cover the trust-this-folder question")
+	}
+}
+
+func TestIsReadyRecognisesClaudesInputLine(t *testing.T) {
+	// Asking before Claude is up sends the command into nothing.
+	for _, pane := range []string{
+		"❯ ",
+		"  ⏵⏵ bypass permissions on (shift+tab to cycle)",
+		"  ? for shortcuts",
+	} {
+		if !isReady(pane) {
+			t.Errorf("isReady(%q) = false, want true", pane)
+		}
+	}
+	for _, pane := range []string{
+		"",
+		" Quick safety check: Is this a project you created or one you trust?",
+	} {
+		if isReady(pane) {
+			t.Errorf("isReady(%q) = true, want false — Claude is not accepting input yet", pane)
+		}
+	}
+}
+
+func TestRemoteControlIsSentAsTwoKeystrokes(t *testing.T) {
+	// Text and Enter together arrive before Claude registers the slash
+	// command, and it answers as if the text were a prompt.
+	var sent []string
+	c := (&Client{command: "x"}).WithRunner(func(script string) (string, error) {
+		sent = append(sent, script)
+		if strings.Contains(script, "capture-pane") {
+			return "❯ ", nil // ready, no URL — forces the ask path
+		}
+		return "", nil
+	})
+
+	c.EnableRemoteControl("s", 6*time.Second)
+
+	var textIdx, enterIdx = -1, -1
+	for i, s := range sent {
+		if strings.Contains(s, "/remote-control") {
+			textIdx = i
+		}
+		if textIdx >= 0 && i > textIdx && strings.HasSuffix(strings.TrimSpace(s), "Enter") {
+			enterIdx = i
+			break
+		}
+	}
+	if textIdx < 0 {
+		t.Fatalf("/remote-control was never sent: %v", sent)
+	}
+	if enterIdx < 0 {
+		t.Fatalf("Enter was never sent separately after the command: %v", sent)
+	}
+	if strings.Contains(sent[textIdx], "Enter") {
+		t.Errorf("command and Enter went in one send-keys: %q", sent[textIdx])
 	}
 }
