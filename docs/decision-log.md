@@ -188,3 +188,34 @@ there, so nobody later "adds it for consistency".
 Tokens are also read from the local environment (`GH_TOKEN`, `VERCEL_TOKEN`,
 `SUPABASE_ACCESS_TOKEN`) so someone who already has them exported is not asked
 to paste anything.
+
+## setuptool prints progress rather than rendering a full-screen TUI
+
+The brief said interactive, and it is — it prompts, pastes, and shows progress.
+But it is not a Bubble Tea program that owns the screen, because the login step
+hands the terminal to a nested Claude Code. A full-screen program has to be
+suspended and restored around that, which is a lot of machinery for a flow a
+person watches once per box. Line-by-line progress with `✓ · ✗` gives the same
+information and composes with the interactive step instead of fighting it.
+
+**Wrong if** setup grows steps that run concurrently or need live updating, at
+which point a real TUI starts earning its complexity.
+
+## Every install step is re-checked after it runs
+
+`Step.Run` runs `Check` again after `Do`, whatever `Do`'s exit code was. A
+`curl | bash` that exits 0 having installed nothing printed "✓ Supabase CLI" on
+a real droplet where the binary existed nowhere on the filesystem.
+
+The reverse is also handled: a `Do` that errors but whose `Check` then passes
+is a success, because installers routinely exit non-zero on a harmless warning.
+
+The supabase step was rewritten as a result — its official install script drops
+a binary in the working directory rather than onto PATH, which is why it
+appeared to succeed and left nothing behind.
+
+## `InstallCBX` checks the ELF magic before uploading
+
+Uploading a darwin build to a linux box fails later with "cannot execute binary
+file", at a point far from the cause. Four bytes of magic turn that into an
+error that names the fix.

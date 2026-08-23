@@ -117,3 +117,22 @@ var envKeys = map[string][]string{
 	"vercel":   {"VERCEL_TOKEN"},
 	"supabase": {"SUPABASE_ACCESS_TOKEN"},
 }
+
+// ClaudeLoggedIn reports whether Claude Code is signed in on the box.
+func ClaudeLoggedIn(t Target) bool {
+	out, err := Run(t, toolPath+`claude auth status --json 2>/dev/null`)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, `"loggedIn": true`) || strings.Contains(out, `"loggedIn":true`)
+}
+
+// ClaudeLogin hands the caller's terminal to Claude Code on the box so they can
+// run /login themselves.
+//
+// There is no token path for a subscription account — the sign-in is a browser
+// OAuth. Driving it by scraping the TUI was tried and deleted: it matched a
+// dozen literal UI strings and broke silently whenever any of them changed.
+func ClaudeLogin(t Target) error {
+	return Interactive(t, toolPath+"claude")
+}

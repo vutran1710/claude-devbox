@@ -1,0 +1,178 @@
+// Command cbx-setuptool provisions a ClaudeBox machine from your laptop.
+//
+// It is the interactive half of the split: a person runs it, watches progress,
+// pastes an auth code, and answers questions. It drives a remote box over SSH
+// and never runs on the box itself — which is what lets cbx, its counterpart,
+// assume it is never interactive and never has a terminal.
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+	"github.com/vutran1710/claudebox/internal/setuptool"
+)
+
+var version = "dev"
+
+func main() {
+	if err := newRootCmd().Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func newRootCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "cbx-setuptool",
+		Short: "Provision a ClaudeBox machine from your laptop",
+		Long: `cbx-setuptool prepares a remote machine to run Claude Code sessions.
+
+It runs on your laptop and drives the box over SSH: installs the tool chain,
+signs Claude Code in, authenticates gh/vercel/supabase with tokens, copies your
+skills and settings across, and installs cbx so the master session can manage
+its own sessions afterwards.
+
+It is interactive by design. Its counterpart, cbx, runs on the box and never
+is.`,
+		Version:       version,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+	root.AddCommand(setupCmd(), authCmd(), migrateCmd(), statusCmd())
+	return root
+}
+
+// target resolves the shared --host/--user flags.
+func target(host, user string) (setuptool.Target, error) {
+	if host == "" {
+		return setuptool.Target{}, fmt.Errorf("--host is required")
+	}
+	return setuptool.NewTarget(host, user)
+}
+
+func setupCmd() *cobra.Command {
+	var host, user, binary string
+	var skipAuth bool
+
+	cmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Install and configure everything on a box",
+		Long: `Runs the whole provisioning flow against a box:
+
+  1. install the tool chain (node, gh, vercel, supabase, claude)
+  2. install cbx from a locally built linux binary
+  3. sign Claude Code in — interactive, you complete it in a browser
+  4. authenticate gh / vercel / supabase from tokens
+  5. copy your skills, agents and settings across
+
+Each step is skipped if it is already done, so re-running is cheap and safe
+after a failure.
+
+Step 3 needs you: the Claude subscription login is a browser OAuth with no
+token path. Everything else can be answered from environment variables.`,
+		Example: "  cbx-setuptool setup --host 203.0.113.9 --binary ./cbx-linux\n" +
+			"  cbx-setuptool setup --host 203.0.113.9 --binary ./cbx-linux --skip-auth",
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			t, err := target(host, user)
+			if err != nil {
+				return err
+			}
+			return runSetup(t, binary, skipAuth)
+		},
+	}
+	cmd.Flags().StringVar(&host, "host", "", "IP or hostname of the box (required)")
+	cmd.Flags().StringVar(&user, "user", "root", "SSH user")
+	cmd.Flags().StringVar(&binary, "binary", "", "Locally built linux cbx to install (GOOS=linux GOARCH=amd64)")
+	cmd.Flags().BoolVar(&skipAuth, "skip-auth", false, "Skip the CLI token prompts")
+	return cmd
+}
+
+func authCmd() *cobra.Command {
+	var host, user string
+	cmd := &cobra.Command{
+		Use:   "auth [tool]",
+		Short: "Authenticate a CLI tool on the box with a token",
+		Long: `Authenticates gh, vercel or supabase on the box.
+
+Tokens are piped over SSH into the tool's own login rather than passed as
+arguments — an argument is visible in the box's process table to every other
+user and lands in shell history.
+
+With no tool named, every unauthenticated tool is offered in turn. A token
+already exported locally (GH_TOKEN, VERCEL_TOKEN, SUPABASE_ACCESS_TOKEN) is
+used without asking.
+
+Claude Code is not here: its subscription login is a browser OAuth with no
+token path. Use setup for that.`,
+		Example: "  cbx-setuptool auth --host 203.0.113.9\n  cbx-setuptool auth github --host 203.0.113.9",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			t, err := target(host, user)
+			if err != nil {
+				return err
+			}
+			only := ""
+			if len(args) == 1 {
+				only = args[0]
+			}
+			return runAuth(t, only)
+		},
+	}
+	cmd.Flags().StringVar(&host, "host", "", "IP or hostname of the box (required)")
+	cmd.Flags().StringVar(&user, "user", "root", "SSH user")
+	return cmd
+}
+
+func migrateCmd() *cobra.Command {
+	var host, user string
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Copy your local Claude config to the box",
+		Long: `Copies the parts of ~/.claude that shape a session: skills, agents,
+settings.json, and the plugin manifest.
+
+Not caches, not session transcripts, and not the plugin bundles themselves —
+the box re-fetches those from the manifest, which is a few kilobytes instead of
+a few hundred megabytes.`,
+		Example: "  cbx-setuptool migrate --host 203.0.113.9",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			t, err := target(host, user)
+			if err != nil {
+				return err
+			}
+			copied, err := setuptool.MigrateConfig(t)
+			for _, c := range copied {
+				fmt.Printf("copied\t%s\n", c)
+			}
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&host, "host", "", "IP or hostname of the box (required)")
+	cmd.Flags().StringVar(&user, "user", "root", "SSH user")
+	return cmd
+}
+
+func statusCmd() *cobra.Command {
+	var host, user string
+	cmd := &cobra.Command{
+		Use:     "status",
+		Short:   "Report what is installed and authenticated on the box",
+		Long:    "Checks each tool and each token login, so you can see what a re-run of setup would actually do.",
+		Example: "  cbx-setuptool status --host 203.0.113.9",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			t, err := target(host, user)
+			if err != nil {
+				return err
+			}
+			return runStatus(t)
+		},
+	}
+	cmd.Flags().StringVar(&host, "host", "", "IP or hostname of the box (required)")
+	cmd.Flags().StringVar(&user, "user", "root", "SSH user")
+	return cmd
+}

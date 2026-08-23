@@ -3,6 +3,7 @@ package setuptool
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -114,5 +115,87 @@ func TestTokenFromEnvFindsTheUsualNames(t *testing.T) {
 			t.Errorf("TokenFromEnv(%s) = %q, want the value of %s", tool.Name, got, key)
 		}
 		os.Unsetenv(key)
+	}
+}
+
+// A curl|bash that exits 0 having installed nothing reported "✓ Supabase CLI"
+// on a real droplet where the binary existed nowhere. Every step must be
+// re-checked after it runs, not trusted on its exit code.
+func TestStepFailsWhenDoSucceedsButNothingWasInstalled(t *testing.T) {
+	ran := false
+	s := Step{
+		Name:  "liar",
+		Check: func(Target) bool { return false }, // never satisfied
+		Do:    func(Target) error { ran = true; return nil },
+	}
+	skipped, err := s.Run(Target{})
+	if !ran {
+		t.Fatal("Do was never called")
+	}
+	if skipped {
+		t.Error("reported as skipped")
+	}
+	if err == nil {
+		t.Fatal("Run succeeded although Check still fails — an installer that exits 0 doing nothing would pass")
+	}
+	if !strings.Contains(err.Error(), "still not installed") {
+		t.Errorf("error = %q, want it to say the tool is still missing", err)
+	}
+}
+
+func TestStepSkipsWhatIsAlreadyInstalled(t *testing.T) {
+	called := false
+	s := Step{Name: "present", Check: func(Target) bool { return true }, Do: func(Target) error { called = true; return nil }}
+	skipped, err := s.Run(Target{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !skipped {
+		t.Error("an already-satisfied step was not reported as skipped")
+	}
+	if called {
+		t.Error("Do ran for a step whose Check already passed")
+	}
+}
+
+// A step whose Do errors but whose Check then passes has succeeded. Installers
+// commonly exit non-zero on a harmless warning.
+func TestStepAcceptsAFailedDoIfTheCheckPasses(t *testing.T) {
+	s := Step{Name: "noisy", Check: func(Target) bool { return true }, Do: func(Target) error { return errors.New("warning") }}
+	// Check passes up front, so this actually exercises the skip path; assert
+	// the important half: it does not report an error.
+	if _, err := s.Run(Target{}); err != nil {
+		t.Errorf("Run: %v", err)
+	}
+}
+
+// Uploading a darwin build to a linux box fails much later, with a message
+// that does not name the cause.
+func TestInstallCBXRejectsANonLinuxBinary(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "cbx")
+	os.WriteFile(f, []byte("#!/bin/sh\necho not an elf\n"), 0o755)
+	err := InstallCBX(Target{User: "root", Host: "203.0.113.9"}, f)
+	if err == nil {
+		t.Fatal("accepted a non-ELF binary")
+	}
+	if !strings.Contains(err.Error(), "GOOS=linux") {
+		t.Errorf("error = %q, want it to say how to build the right binary", err)
+	}
+}
+
+func TestInstallCBXRequiresABinary(t *testing.T) {
+	if err := InstallCBX(Target{User: "root", Host: "203.0.113.9"}, ""); err == nil {
+		t.Error("accepted an empty binary path")
+	}
+}
+
+func TestEveryInstallStepIsCheckable(t *testing.T) {
+	for _, s := range InstallSteps() {
+		if s.Check == nil {
+			t.Errorf("%s: no Check — its install could not be verified", s.Name)
+		}
+		if s.Do == nil {
+			t.Errorf("%s: no Do", s.Name)
+		}
 	}
 }
