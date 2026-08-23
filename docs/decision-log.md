@@ -82,3 +82,24 @@ unrelated commit — once putting 209 lines of Go inside a commit labelled
 `docs:`. Both were caught and rewritten before pushing. The rule now is
 `git commit --only <paths>`, which commits the named paths regardless of what
 else is staged.
+
+## Removed `internal/shell`'s PATH-clobbering `init()`
+
+Not a planned change — it blocked the work. A new integration test kept
+skipping with "tmux not installed" on a machine where tmux is installed. The
+cause: `shell.init()` ran `os.Setenv("PATH", FullPATH)`, so importing the
+package anywhere in a binary replaced the PATH of the whole process with a
+hardcoded Linux list. `/opt/homebrew/bin` vanished and with it tmux and gh. The
+test package never imported `shell` directly; it arrived transitively.
+
+The `init()` was redundant besides — `RunShell` already sets the PATH per
+command. It only affected `exec.LookPath`, so `Which` now resolves against
+`FullPATH` explicitly instead.
+
+An AST test asserts the package declares no `init()`, because this is invisible
+until something far away breaks.
+
+**Note for the eventual split:** `FullPATH` still hardcodes `/root/...`, which
+is wrong for any non-root user. `internal/tmux` takes the other approach —
+prepending `$HOME/.local/bin` inside the script so the shell expands it. The
+`FullPATH` constant should follow when the setup tool moves.

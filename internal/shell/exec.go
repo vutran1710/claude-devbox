@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -41,11 +42,6 @@ func RunTimeout(timeout time.Duration, name string, args ...string) (Result, err
 const FullPATH = "/usr/sbin:/root/.local/bin:/root/.npm-global/bin:/root/.cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
 const ShellPATH = "PATH=" + FullPATH
 
-func init() {
-	// Set PATH for the Go process so LookPath (used by Which) finds all tools
-	os.Setenv("PATH", FullPATH)
-}
-
 func RunShell(ctx context.Context, script string) (Result, error) {
 	cmd := exec.CommandContext(ctx, "bash", "-c", script)
 	cmd.Env = append(cmd.Environ(), ShellPATH, "HOME=/root")
@@ -70,9 +66,21 @@ func RunShellTimeout(timeout time.Duration, script string) (Result, error) {
 	return RunShell(ctx, script)
 }
 
+// Which reports whether a binary is on the provisioning PATH.
+//
+// It resolves against FullPATH explicitly rather than the process environment.
+// An earlier version set os.Setenv("PATH", FullPATH) in an init() so LookPath
+// would find these directories — but that overwrote the PATH of every process
+// importing this package, which on a developer's Mac silently erased
+// /opt/homebrew/bin and made tmux and gh invisible to unrelated code.
 func Which(binary string) bool {
-	_, err := exec.LookPath(binary)
-	return err == nil
+	for _, dir := range filepath.SplitList(FullPATH) {
+		info, err := os.Stat(filepath.Join(dir, binary))
+		if err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func FileExists(path string) bool {
