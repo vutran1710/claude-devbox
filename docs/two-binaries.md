@@ -74,6 +74,50 @@ Contract, because an agent depends on it:
 It knows nothing about SSH, aliases, or remote machines. Anything remote is
 `cbx-setuptool`'s job.
 
+## `cbx` owns state on the box
+
+tmux is the only session registry today, which means everything cbx knows about
+a session dies when the tmux server does. That is not hypothetical: adding the
+master session to the `docker` group required a `usermod` plus a full tmux
+server restart, and the Remote Control URL changed because nothing had recorded
+it.
+
+`cbx` keeps a SQLite database on the box — one row per session: name, working
+directory, repo it was cloned from, Remote Control URL, created-at, last-seen.
+`cbx ls` reads it and reconciles against `tmux ls`, so it can distinguish a
+session that is running from one that existed and died.
+
+**Why SQLite rather than a JSON file.** Concurrent writes. The master session
+and a human over SSH can both run `cbx` at once, and a read-modify-write over
+a JSON file is a lost update — we already shipped exactly that bug in an
+earlier attempt at a target store, then had to add file locking and atomic
+renames by hand and got the cleanup path wrong twice. SQLite does this
+correctly out of the box, and it is the difference between a store that is
+right and one that is right until two commands overlap.
+
+The cost is a dependency: the project currently has three, all Bubble Tea. A
+pure-Go driver avoids cgo but is not small. See the open questions.
+
+## Export: `cbx` reads out, `cbx-setuptool` writes in
+
+The two binaries move config in opposite directions, and the asymmetry is
+deliberate. `cbx-setuptool` pushes your laptop's `~/.claude` **to** a box.
+`cbx` exports what is **on** the box, from the box, without needing a laptop:
+
+```
+cbx export skills     # skills installed here
+cbx export rules      # CLAUDE.md and settings that shape sessions
+cbx export db         # the session database
+```
+
+This is what makes a box inspectable and reproducible from the master session
+itself — Claude can answer "what skills do I have?" and "what have I been
+working on?" without anyone SSHing in. It is also the backup path: exporting
+the db and the rules is enough to rebuild a box's identity somewhere else.
+
+Output goes to stdout so it composes (`cbx export db > backup.sql`), which is
+the same non-interactive contract as everything else in `cbx`.
+
 ## Where the fiddly parts live
 
 Creating a session means driving `/remote-control` and reading the URL back out
@@ -91,12 +135,23 @@ bootstraps master by invoking `cbx new master` rather than reimplementing it.
 
 ## Open questions
 
-1. **How does `cbx-setuptool` reach the laptop?** `go install`, a release
+1. **Is SQLite worth the dependency?** It solves concurrent writes correctly,
+   which we demonstrably get wrong by hand. But `modernc.org/sqlite` is a large
+   pure-Go dependency for a project with three, and cgo `mattn/go-sqlite3`
+   complicates cross-compiling the linux binary from a Mac — which is how
+   releases are built today.
+2. **What exactly are "rules"?** `CLAUDE.md` alone, or also `settings.json`
+   hooks, agents, and `.claude/` directories inside each workspace project?
+   Export is only useful if it captures everything that shapes a session.
+3. **Does `cbx export` have an `import` counterpart?** If the db and rules can
+   be exported for backup, something has to restore them, and that is either
+   `cbx import` or a `cbx-setuptool` job.
+4. **How does `cbx-setuptool` reach the laptop?** `go install`, a release
    binary, or Homebrew. `cbx` is installed on the box by cloud-init as now.
-2. **Does `cbx` need `--json`?** One-fact-per-line may be enough for an agent;
+5. **Does `cbx` need `--json`?** One-fact-per-line may be enough for an agent;
    JSON is easy to add and hard to remove.
-3. **Does `resume` mean reattach, or restart a dead session?** They are
+6. **Does `resume` mean reattach, or restart a dead session?** They are
    different commands if a session can die.
-4. **Does VNC survive?** It is a setuptool concern either way, but three
+7. **Does VNC survive?** It is a setuptool concern either way, but three
    browser stacks are installed today (Agent Browser, Playwright, VNC's
    Chromium) and at most one is load-bearing.
