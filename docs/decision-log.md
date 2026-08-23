@@ -348,3 +348,8 @@ risk is specific to a remote box rather than to the code path.
 Token auth for gh/vercel/supabase is likewise unexercised against real tokens —
 the recipes and their verify commands are unit-tested, but no live token was
 used.
+
+## Standing permission (owner, explicit)
+
+Test droplets may be created freely. `claudebox` (178.128.118.33) is the
+owner's live box and is never to be modified or destroyed.
