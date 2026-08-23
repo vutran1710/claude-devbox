@@ -57,9 +57,14 @@ apt-get update -qq && apt-get install -y -qq `+pkgs)
 			Name:  "node",
 			Check: func(t Target) bool { return has(t, "node") && has(t, "npm") },
 			Do: func(t Target) error {
+				// The npm global prefix is /usr/local, not ~/.npm-global, so
+				// globally-installed CLIs land on the default PATH. A
+				// non-interactive ssh session reads no rc file, so anything
+				// under $HOME is invisible to `ssh box vercel ...` and to any
+				// tool that does not know to prepend it.
 				_, err := remote(t, `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && `+
 					`DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs && `+
-					`npm config set prefix "$HOME/.npm-global"`)
+					`npm config set prefix /usr/local`)
 				return err
 			},
 		},
@@ -171,20 +176,21 @@ func checkELF(path string) error {
 // Only what shapes a session: skills, agents, settings, and the plugin
 // manifest. Not caches, not session transcripts, not the 300MB of plugin
 // bundles that the box re-fetches for itself.
-func MigrateConfig(t Target) ([]string, error) {
+func MigrateConfig(t Target) ([]string, []Dropped, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	remoteHome, err := remoteHomeDir(t)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if _, err := Run(t, "mkdir -p "+shq(remoteHome+"/.claude/plugins")); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var copied []string
+	var dropped []Dropped
 	for _, rel := range []string{
 		"skills", "agents", "settings.json",
 		"plugins/installed_plugins.json", "plugins/known_marketplaces.json",
@@ -195,19 +201,59 @@ func MigrateConfig(t Target) ([]string, error) {
 			continue
 		}
 		if err != nil {
-			return copied, err
+			return copied, dropped, err
 		}
 		dest := remoteHome + "/.claude/" + rel
+
+		// settings.json cannot be copied verbatim: it names the operator's
+		// home directory and binaries the box does not have, and every hook it
+		// carries fires on every edit inside a session.
+		if rel == "settings.json" {
+			d, err := uploadPortableSettings(t, local, dest, home, remoteHome)
+			if err != nil {
+				return copied, dropped, err
+			}
+			dropped = append(dropped, d...)
+			copied = append(copied, rel)
+			continue
+		}
+
 		if info.IsDir() {
 			if err := uploadDir(t, local, dest); err != nil {
-				return copied, err
+				return copied, dropped, err
 			}
 		} else if err := Upload(t, local, dest); err != nil {
-			return copied, err
+			return copied, dropped, err
 		}
 		copied = append(copied, rel)
 	}
-	return copied, nil
+	return copied, dropped, nil
+}
+
+// uploadPortableSettings rewrites settings.json for the target before sending
+// it, and reports what it removed.
+func uploadPortableSettings(t Target, local, dest, localHome, remoteHome string) ([]Dropped, error) {
+	raw, err := os.ReadFile(local)
+	if err != nil {
+		return nil, fmt.Errorf("read settings.json: %w", err)
+	}
+	out, dropped, err := PortableSettings(raw, localHome, remoteHome, func(bin string) bool {
+		return has(t, bin)
+	})
+	if err != nil {
+		return nil, err
+	}
+	tmp, err := os.CreateTemp("", "cbx-settings-*.json")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(out); err != nil {
+		tmp.Close()
+		return nil, err
+	}
+	tmp.Close()
+	return dropped, Upload(t, tmp.Name(), dest)
 }
 
 func remoteHomeDir(t Target) (string, error) {

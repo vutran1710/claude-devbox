@@ -145,9 +145,12 @@ a few hundred megabytes.`,
 			if err != nil {
 				return err
 			}
-			copied, err := setuptool.MigrateConfig(t)
+			copied, dropped, err := setuptool.MigrateConfig(t)
 			for _, c := range copied {
 				fmt.Printf("copied\t%s\n", c)
+			}
+			for _, d := range dropped {
+				fmt.Printf("dropped\t%s\t%s\n", d.Path, d.Reason)
 			}
 			return err
 		},

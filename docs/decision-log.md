@@ -243,3 +243,58 @@ installer that lies: a Check that does not cover what its Do claims.
 Removed rather than added to the Check, because nothing needs it —
 `modernc.org/sqlite` is pure Go, and `cbx export db` exists precisely so a
 person never has to open the database by hand.
+
+## Claude Code refuses `--dangerously-skip-permissions` as root, and that explains the `claude` user
+
+The smoke test found this, and it overturns an assumption:
+
+    --dangerously-skip-permissions cannot be used with root/sudo privileges
+    for security reasons
+
+The session exits immediately, its tmux window closes, and `cbx new` appears to
+succeed while leaving nothing behind. `cbx ls` then reports `stopped` a second
+later.
+
+So the original `claude` user was not a security preference — it was a
+workaround for a constraint Claude Code imposes. Nine bug-fix commits went into
+bridging root-installed tools to that account, and every one of them was the
+cost of this single check.
+
+**`IS_SANDBOX=1` is the sanctioned escape.** With it, a root session starts and
+stays up. That is a true statement here: a ClaudeBox droplet is single-tenant
+and exists only to run these sessions. Setting it means "no identity switching"
+survives as a design rule rather than being quietly reversed.
+
+Verified on a droplet: without it the session dies within two seconds, with it
+`cbx ls` reports it running.
+
+**Wrong if** ClaudeBox ever runs sessions for anyone but the box's owner, or on
+a machine doing anything else — at which point the sandbox claim stops being
+true and a separate user becomes honest rather than ceremonial.
+
+## Three PATH findings from the smoke test
+
+All three were invisible locally and to `cbx-setuptool status`, because that
+command prepends the tool PATH itself before checking.
+
+1. **npm's global prefix was `$HOME/.npm-global`**, so `vercel` was invisible to
+   `ssh box vercel ...`. Now `/usr/local`, which is on the default PATH — the
+   right answer for a root-owned single-purpose box.
+2. **`claude` installs to `~/.local/bin`** and is now symlinked into
+   `/usr/local/bin`, so nothing has to know where the installer put it.
+3. **`sqlite3` was listed for install but not covered by its step's `Check`**,
+   so on a box that already had tmux and git the step skipped and it never
+   arrived. Dropped rather than fixed: nothing needs it.
+
+## The portability pass was lost in the rewrite and had to be re-ported
+
+`MigrateConfig` initially uploaded `settings.json` verbatim, reintroducing a bug
+an earlier droplet had already found: hooks referencing `/Users/...` and
+binaries the box lacks, firing on every edit inside every session.
+
+Re-ported with the lessons intact — compound commands are split into segments
+so `cat >/dev/null || true; ... && code-review-graph ...` is understood,
+builtins never cause a drop, and the trailing boundary accepts a quote so
+`--repo "/Users/you"` is rewritten. Tested against the real file's shape rather
+than a simplified fixture, which is how the first version passed while being
+wrong.

@@ -85,9 +85,12 @@ func runSetup(t setuptool.Target, binary string, skipAuth, skipClaude bool) erro
 	}
 
 	fmt.Println("\nConfig")
-	copied, err := setuptool.MigrateConfig(t)
+	copied, dropped, err := setuptool.MigrateConfig(t)
 	for _, c := range copied {
 		step(tick, c, "")
+	}
+	for _, d := range dropped {
+		step(skip, d.Path, "dropped — "+d.Reason)
 	}
 	if err != nil {
 		step(cross, "migrate", err.Error())
