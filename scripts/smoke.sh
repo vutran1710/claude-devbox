@@ -83,6 +83,38 @@ ok "cbx resume"
 remote 'cbx export db' | grep -q '^smoke' || fail "cbx export db does not include the session"
 ok "cbx export db"
 
+# --repo goes through exec.Command with "--" rather than a shell, so a value
+# git would read as an option must be refused and leave nothing behind.
+remote 'rm -f /tmp/pwned; cbx new evil --repo "--upload-pack=touch /tmp/pwned"' 2>/dev/null && fail "a hostile --repo was accepted"
+remote 'test -e /tmp/pwned' && fail "a hostile --repo executed its payload"
+remote 'test -d "$HOME/workspace/evil"' && fail "a rejected clone left a directory behind"
+ok "hostile --repo rejected cleanly"
+
+# kill removes the session, not the directory — deleting someone's work is not
+# kill's job — so the clone target has to be cleared explicitly here.
+remote 'cbx kill demo >/dev/null 2>&1; rm -rf "$HOME/workspace/demo"'
+remote 'cbx new demo --repo octocat/Hello-World >/dev/null' || fail "cbx new --repo failed"
+remote 'test -f "$HOME/workspace/demo/README"' || fail "the repo was not cloned"
+ok "cbx new --repo clones"
+remote 'cbx kill demo >/dev/null 2>&1; rm -rf "$HOME/workspace/demo"' || true
+
+remote 'cbx export skills' | grep -q . || fail "cbx export skills printed nothing"
+ok "cbx export skills"
+remote 'cbx export rules' | grep -q '=====' || fail "cbx export rules printed no sections"
+ok "cbx export rules"
+
+# The session store is SQLite rather than a JSON file precisely so overlapping
+# callers do not lose each other's writes. Twelve at once, from separate
+# processes.
+remote 'for i in $(seq 1 12); do (cbx new conc$i >/dev/null 2>&1 &); done; sleep 25' || true
+# Count only the concurrent ones: other sessions from earlier checks are still
+# recorded, and an absolute total would make this assert the wrong thing.
+n=$(remote 'cbx ls | grep -c "^conc"' | tr -d ' \r')
+[ "$n" = "12" ] || fail "concurrent cbx new recorded $n of 12 sessions — writes were lost"
+ok "12 concurrent sessions, no lost writes"
+remote 'for i in $(seq 1 12); do cbx kill conc$i >/dev/null 2>&1; done' || true
+
+remote 'cbx new smoke >/dev/null 2>&1' || true
 remote 'cbx kill smoke' || fail "cbx kill failed"
 remote 'cbx ls' | grep -q '^smoke' && fail "session still listed after kill"
 ok "cbx kill"
